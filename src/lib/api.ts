@@ -48,8 +48,7 @@ export function exportCsv(kind: 'logs' | 'applications' | 'people' | 'projects' 
   }
 }
 
-export async function loadRemoteData(client: SupabaseClient): Promise<CommandData> {
-  const logs = await client.from('daily_logs').select('*')
+export async function loadRemoteData(client: SupabaseClient): Promise<CommandData> {  const logs = await client.from('daily_logs').select('*')
   const learning = await client.from('learning_items').select('*')
   const people = await client.from('people').select('*')
   const applications = await client.from('job_applications').select('*')
@@ -65,9 +64,10 @@ export async function loadRemoteData(client: SupabaseClient): Promise<CommandDat
   }
 }
 
-export async function savePersonRow(client: SupabaseClient, person: Person): Promise<void> {
+export async function savePersonRow(client: SupabaseClient, person: Person, userId: string): Promise<void> {
   await client.from('people').upsert({
     id: person.id,
+    user_id: userId,
     name: person.name,
     company: person.company || null,
     status: person.status,
@@ -75,9 +75,10 @@ export async function savePersonRow(client: SupabaseClient, person: Person): Pro
   })
 }
 
-export async function saveProjectRow(client: SupabaseClient, project: Project): Promise<void> {
+export async function saveProjectRow(client: SupabaseClient, project: Project, userId: string): Promise<void> {
   await client.from('projects').upsert({
     id: project.id,
+    user_id: userId,
     name: project.name,
     project_type: project.type,
     status: project.status,
@@ -86,9 +87,10 @@ export async function saveProjectRow(client: SupabaseClient, project: Project): 
   })
 }
 
-export async function saveIdeaRow(client: SupabaseClient, idea: Idea): Promise<void> {
+export async function saveIdeaRow(client: SupabaseClient, idea: Idea, userId: string): Promise<void> {
   await client.from('ideas').upsert({
     id: idea.id,
+    user_id: userId,
     idea: idea.idea,
     status: idea.status,
     next_action: idea.nextAction || null,
@@ -108,12 +110,12 @@ export async function loadRemoteSettings(client: SupabaseClient): Promise<Settin
   return mapSettings(data as DbUserSettings)
 }
 
-export async function upsertLog(client: SupabaseClient, log: DailyLog): Promise<void> {
-  await client.from('daily_logs').upsert({ ...logToDb(log) }, { onConflict: 'user_id,day' })
+export async function upsertApplicationRow(client: SupabaseClient, app: JobApplication, userId: string): Promise<void> {
+  await client.from('job_applications').upsert({ user_id: userId, ...applicationToDb(app) })
 }
 
-export async function upsertApplicationRow(client: SupabaseClient, app: JobApplication): Promise<void> {
-  await client.from('job_applications').upsert({ ...applicationToDb(app) })
+export async function upsertLog(client: SupabaseClient, log: DailyLog, userId: string): Promise<void> {
+  await client.from('daily_logs').upsert({ user_id: userId, ...logToDb(log) }, { onConflict: 'user_id,day' })
 }
 
 export async function upsertLearning(client: SupabaseClient, item: LearningItem): Promise<void> {

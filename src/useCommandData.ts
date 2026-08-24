@@ -113,10 +113,11 @@ export function useCommandData(): UseCommandDataResult {
     return next
   }
 
-  function remote(action: (client: NonNullable<ReturnType<typeof getSupabase>>) => Promise<unknown>): void {
-    if (mode === 'live' && session) {
+  function remote(action: (client: NonNullable<ReturnType<typeof getSupabase>>, userId: string) => Promise<unknown>): void {
+    if (mode === 'live' && session?.user?.id) {
       const client = getSupabase()
-      if (client) void action(client).catch((error) => console.error('sync failed', error))
+      const userId = session.user.id
+      if (client) void action(client, userId).catch((error) => console.error('sync failed', error))
     }
   }
 
@@ -128,12 +129,12 @@ export function useCommandData(): UseCommandDataResult {
 
   function saveLog(log: DailyLog): void {
     update((current) => ({ ...current, logs: [...current.logs.filter((item) => item.day !== log.day), log] }))
-    remote((client) => upsertLog(client, log))
+    remote((client, userId) => upsertLog(client, log, userId))
   }
 
   function saveApplication(app: JobApplication): void {
     update((current) => ({ ...current, applications: replace(current.applications, app) }))
-    remote((client) => upsertApplicationRow(client, app))
+    remote((client, userId) => upsertApplicationRow(client, app, userId))
   }
 
   function deleteApplication(id: string): void {
@@ -143,7 +144,7 @@ export function useCommandData(): UseCommandDataResult {
 
   function savePerson(person: Person): void {
     update((current) => ({ ...current, people: replace(current.people, person) }))
-    remote((client) => savePersonRow(client, person))
+    remote((client, userId) => savePersonRow(client, person, userId))
   }
 
   function deletePerson(id: string): void {
@@ -153,7 +154,7 @@ export function useCommandData(): UseCommandDataResult {
 
   function saveProject(project: Project): void {
     update((current) => ({ ...current, projects: replace(current.projects, project) }))
-    remote((client) => saveProjectRow(client, project))
+    remote((client, userId) => saveProjectRow(client, project, userId))
   }
 
   function deleteProject(id: string): void {
@@ -163,7 +164,7 @@ export function useCommandData(): UseCommandDataResult {
 
   function saveIdea(idea: Idea): void {
     update((current) => ({ ...current, ideas: replace(current.ideas, idea) }))
-    remote((client) => saveIdeaRow(client, idea))
+    remote((client, userId) => saveIdeaRow(client, idea, userId))
   }
 
   function deleteIdea(id: string): void {

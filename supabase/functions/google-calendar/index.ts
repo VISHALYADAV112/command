@@ -257,7 +257,10 @@ async function handler(req: Request, action: string): Promise<Response> {
       const w = todayWindow()
       const res = await cal(token,
         `/calendar/v3/calendars/primary/events?timeMin=${w.timeMin}&timeMax=${w.timeMax}&orderBy=startTime&singleEvents=true`)
-      if (!res.ok) return json({ error: 'Calendar request failed', status: res.status }, 502)
+      if (!res.ok) {
+        console.error('calendar events read failed', res.status, res.data)
+        return json({ error: 'Calendar request failed', status: res.status, detail: res.data }, 502)
+      }
       const events = ((res.data?.items ?? []) as any[]).map((item: any) => ({
         id: item.id, title: item.summary ?? '',
         start: item.start?.dateTime ?? item.start?.date ?? null,
@@ -283,7 +286,10 @@ async function handler(req: Request, action: string): Promise<Response> {
           { method: 'PUT', body: JSON.stringify(event) })
         : await cal(token, '/calendar/v3/calendars/primary/events',
           { method: 'POST', body: JSON.stringify(event) })
-      if (!res.ok || !res.data?.id) return json({ error: 'Event create failed', status: res.status }, 502)
+      if (!res.ok || !res.data?.id) {
+        console.error('calendar event write failed', res.status, res.data)
+        return json({ error: 'Event create failed', status: res.status, detail: res.data }, 502)
+      }
       await c.from('integration_links').upsert({
         user_id: uid, provider: 'google', entity_type: body.entity_type, entity_id: body.entity_id,
         external_type: 'calendar_event', external_id: res.data.id, external_url: res.data.htmlLink ?? null,
@@ -301,7 +307,12 @@ async function handler(req: Request, action: string): Promise<Response> {
 Deno.serve(async (req) => {
   REQUEST_ORIGIN = req.headers.get('origin') ?? APP
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors() })
-  const url = new URL(req.url)
-  const action = url.searchParams.get('action') ?? 'status'
-  return handler(req, action)
+  try {
+    const url = new URL(req.url)
+    const action = url.searchParams.get('action') ?? 'status'
+    return await handler(req, action)
+  } catch (error) {
+    console.error('calendar function crashed', error)
+    return json({ error: 'Internal error', detail: String(error) }, 500)
+  }
 })
