@@ -1,6 +1,5 @@
-const CACHE_NAME = 'command-shell-v1'
+const CACHE_NAME = 'command-shell-v2'
 const SHELL = [
-  './',
   './index.html',
   './manifest.webmanifest',
   './assets/command-mark.svg',
@@ -20,13 +19,31 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+// Navigations and the document go network-first so deploys appear after one
+// reload; versioned /assets/ files are immutable and stay cache-first.
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-      if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+  const request = event.request
+  if (request.method !== 'GET') return
+  const url = new URL(request.url)
+  const sameOrigin = url.origin === self.location.origin
+
+  if (request.mode === 'navigate' || sameOrigin && (url.pathname === '/' || url.pathname.endsWith('/command/') || url.pathname.endsWith('index.html'))) {
+    event.respondWith(
+      fetch(request).then((response) => {
         const copy = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
+        caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy))
+        return response
+      }).catch(() => caches.match('./index.html')),
+    )
+    return
+  }
+
+  if (!sameOrigin) return
+  event.respondWith(
+    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone()
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy))
       }
       return response
     })),

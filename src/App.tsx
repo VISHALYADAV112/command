@@ -584,6 +584,17 @@ function ReviewSheet({ item, onComplete, onClose }: { item: LearningItem; onComp
   )
 }
 
+function explainCalendarError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : ''
+  try {
+    const parsed = JSON.parse(raw) as { detail?: { error?: { message?: string }; message?: string }; error?: string }
+    return parsed.detail?.error?.message ?? parsed.detail?.message ?? parsed.error ?? raw.slice(0, 140)
+  } catch {
+    return raw.slice(0, 140) || 'unreachable'
+  }
+}
+
+
 export function App() {
   const today = useMemo(() => new Date(), [])
   const todayKey = dateKey(today)
@@ -656,8 +667,8 @@ export function App() {
         idempotency_key: `application-${app.id}-${app.windowClosesOn}`,
       })
       showNotice('Added to Calendar')
-    } catch {
-      showNotice('Could not reach Calendar')
+    } catch (error) {
+      showNotice(`Calendar: ${explainCalendarError(error)}`)
     }
   }
 
@@ -677,8 +688,8 @@ export function App() {
         idempotency_key: `project-${project.id}-${project.deadlineOn}`,
       })
       showNotice('Added to Calendar')
-    } catch {
-      showNotice('Could not reach Calendar')
+    } catch (error) {
+      showNotice(`Calendar: ${explainCalendarError(error)}`)
     }
   }
 

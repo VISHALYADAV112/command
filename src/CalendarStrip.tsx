@@ -7,12 +7,12 @@ import { getCalendarStatus, listTodayEvents, type CalendarEvent } from './lib/ca
 // dashboard (spec §13.3: failures are bounded, quiet by default).
 export function CalendarStrip({ session }: { session: Session | null }) {
   const [events, setEvents] = useState<CalendarEvent[]>([])
-  const [unavailable, setUnavailable] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session) return
     let cancelled = false
-    setUnavailable(false)
+    setFailure(null)
     getCalendarStatus(session)
       .then((status) => {
         if (cancelled) return
@@ -21,15 +21,18 @@ export function CalendarStrip({ session }: { session: Session | null }) {
           if (!cancelled) setEvents(next)
         })
       })
-      .catch(() => {
-        if (!cancelled) setUnavailable(true)
+      .catch((error: Error) => {
+        if (!cancelled) setFailure(error.message.slice(0, 140))
       })
     return () => {
       cancelled = true
     }
   }, [session])
 
-  if (!session || unavailable || events.length === 0) return null
+  if (!session || events.length === 0) {
+    if (failure) return <div className="calendar-strip calendar-error">Calendar: {failure}</div>
+    return null
+  }
 
   return (
     <div className="calendar-strip">
