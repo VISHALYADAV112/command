@@ -153,28 +153,41 @@ async function handler(req: Request, action: string): Promise<Response> {
     const { data: row } = await c.from('oauth_states').select('state,code_verifier,user_id')
       .eq('state', state).single()
     if (!row) return redirect(false)
-    const ex = await postForm(TOKEN_URL, {
-      client_id: CID, client_secret: CSECRET, code,
-      code_verifier: String(row.code_verifier),
-      redirect_uri: CALLBACK_URI,
-      grant_type: 'authorization_code',
-    })
-    if (!ex.ok || !ex.data?.refresh_token) {
+
+    let ok = false
+    try {
+      const ex = await postForm(TOKEN_URL, {
+        client_id: CID, client_secret: CSECRET, code,
+        code_verifier: String(row.code_verifier),
+        redirect_uri: CALLBACK_URI,
+        grant_type: 'authorization_code',
+      })
+      if (!ex.ok || !ex.data?.refresh_token) {
+        console.error(`calendar callback: token exchange failed (${ex.status})`, ex.data)
+      } else {
+        const secret = await c.vault.createSecret({
+          name: `google_calendar_refresh_${row.user_id}`, secret: ex.data.refresh_token,
+        })
+        if (secret.error) {
+          console.error('calendar callback: vault store failed', secret.error)
+        } else {
+          const { error: upsertError } = await c.from('integration_accounts').upsert({
+            user_id: row.user_id, provider: 'google',
+            provider_account_id: ex.data.sub ?? '',
+            scopes: [SCOPE], refresh_secret_id: String(secret.data.id),
+            status: 'connected', last_verified_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,provider' })
+          if (upsertError) console.error('calendar callback: account upsert failed', upsertError)
+          else ok = true
+        }
+      }
+    } finally {
+      // Consume the state no matter which path ran — one attempt per code.
       await c.from('oauth_states').delete().eq('state', state)
-      return redirect(false)
+      // Sweep abandoned attempts older than 30 minutes.
+      await c.from('oauth_states').delete().lt('created_at', new Date(Date.now() - 1_800_000).toISOString())
     }
-    const secret = await c.vault.createSecret({
-      name: `google_calendar_refresh_${row.user_id}`, secret: ex.data.refresh_token,
-    })
-    if (secret.error) return redirect(false)
-    await c.from('integration_accounts').upsert({
-      user_id: row.user_id, provider: 'google',
-      provider_account_id: ex.data.sub ?? '',
-      scopes: [SCOPE], refresh_secret_id: String(secret.data.id),
-      status: 'connected', last_verified_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,provider' })
-    await c.from('oauth_states').delete().eq('state', state)
-    return redirect(true)
+    return redirect(ok)
   }
 
   const uid = await userId(req)
