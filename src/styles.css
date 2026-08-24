@@ -1903,3 +1903,19 @@ fieldset > legend,
 .confidence.c-3 { color: var(--muted); }
 .confidence.c-2 { color: #7d7a74; }
 .confidence.c-1 { color: #5c5a55; }
+
+/* Update banner */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid #2A2A2E;
+  padding: 10px 14px;
+  font-size: 13px;
+  z-index: 60;
+}

@@ -376,7 +376,23 @@ function ReviewQueue({ items, today, onReview }: { items: LearningItem[]; today:
 }
 
 function DailyLogSheet({ log, settings, onSave, onClose }: { log: DailyLog; settings: Settings; onSave: (log: DailyLog) => void; onClose: () => void }) {
-  const [draft, setDraft] = useState(log)
+  const draftKey = `command.draft.${log.day}`
+  const [draft, setDraft] = useState<DailyLog>(() => {
+    try {
+      const stored = localStorage.getItem(draftKey)
+      return stored ? (JSON.parse(stored) as DailyLog) : log
+    } catch {
+      return log
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(draft))
+    } catch {
+      /* prototype */
+    }
+  }, [draft, draftKey])
 
   function setMinutes(key: PracticeKey, value: number) {
     const field = key === 'node' ? 'nodeMinutes' : key === 'dsa' ? 'dsaMinutes' : key === 'math' ? 'mathMinutes' : 'jobMinutes'
@@ -385,6 +401,11 @@ function DailyLogSheet({ log, settings, onSave, onClose }: { log: DailyLog; sett
 
   function submit(event: FormEvent) {
     event.preventDefault()
+    try {
+      localStorage.removeItem(draftKey)
+    } catch {
+      /* prototype */
+    }
     onSave(draft)
   }
 
@@ -580,6 +601,13 @@ export function App() {
   const [reviewItem, setReviewItem] = useState<LearningItem | null>(null)
   const [createTick, setCreateTick] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
+  const [updateReady, setUpdateReady] = useState(false)
+
+  useEffect(() => {
+    function onUpdateReady() { setUpdateReady(true) }
+    window.addEventListener('command:update-ready', onUpdateReady)
+    return () => window.removeEventListener('command:update-ready', onUpdateReady)
+  }, [])
 
   function showNotice(message: string) {
     setNotice(message)
@@ -698,7 +726,7 @@ export function App() {
         {route === '' && (
           <main>
             <TodayInstrument log={todayLog} settings={settings} onOpen={() => setLogOpen(true)} />
-            <div className="action-row" aria-label="Quick capture">
+            <div className="action-row" role="group" aria-label="Quick capture">
               <button className="secondary-button" type="button" onClick={() => setApplicationOpen(true)}><Icon name="plus" /><span>Application</span></button>
               <button className="secondary-button" type="button" onClick={() => goCreate('learning')}><Icon name="plus" /><span>Concept</span></button>
               <button className="secondary-button" type="button" onClick={() => goCreate('ideas')}><Icon name="plus" /><span>Idea</span></button>
@@ -757,6 +785,12 @@ export function App() {
       )}
       {reviewItem && <ReviewSheet item={reviewItem} onComplete={handleReview} onClose={() => setReviewItem(null)} />}
       {settingsOpen && <SettingsSheet settings={settings} session={session} mode={mode} onSaveSettings={saveSettings} onSignOut={() => { setSettingsOpen(false); signOut() }} onClose={() => setSettingsOpen(false)} onExport={handleExport} />}
+      {updateReady && (
+        <div className="update-banner" role="alert">
+          <span>A new version is ready.</span>
+          <button className="secondary-button" type="button" onClick={() => window.location.reload()}>Refresh</button>
+        </div>
+      )}
       <div className={`toast ${notice ? 'is-visible' : ''}`} role="status">{notice}</div>
     </>
   )
