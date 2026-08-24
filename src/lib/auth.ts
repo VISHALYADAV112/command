@@ -3,7 +3,14 @@ import { getSupabase } from './supabase'
 import { isSupabaseConfigured } from './config'
 
 export async function signInWithGoogle(client: SupabaseClient): Promise<void> {
-  await client.auth.signInWithOAuth({ provider: 'google' })
+  // GitHub Pages project sites live under a subpath (/command/), but OAuth
+  // origins carry no path — without an explicit redirectTo, Supabase returns
+  // the browser to the bare origin and Pages 404s.
+  const { origin, pathname } = window.location
+  await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${origin}${pathname}` },
+  })
 }
 
 export async function signOut(client: SupabaseClient): Promise<void> {
