@@ -22,24 +22,31 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const CAL_API = 'https://www.googleapis.com'
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 
-const CORS = {
-  'Access-Control-Allow-Origin': APP,
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Vary': 'Origin',
+// CORS follows the calling app's origin when it is on the allow-list
+// (production Pages URL plus local dev); anything else gets APP.
+const ALLOWED_ORIGINS = new Set([APP, 'http://localhost:5173', 'http://127.0.0.1:5173'])
+let REQUEST_ORIGIN = APP
+
+function cors(): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(REQUEST_ORIGIN) ? REQUEST_ORIGIN : APP,
+    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Vary': 'Origin',
+  }
 }
 
 function json(b: unknown, status = 200): Response {
   return new Response(JSON.stringify(b), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
+    headers: { ...cors(), 'Content-Type': 'application/json' },
   })
 }
 
 function redirect(ok: boolean): Response {
   return new Response(null, {
     status: 302,
-    headers: { ...CORS, Location: `${APP}/#/settings?calendar=${ok ? 'connected' : 'error'}` },
+    headers: { ...cors(), Location: `${APP}/#/settings?calendar=${ok ? 'connected' : 'error'}` },
   })
 }
 
@@ -244,7 +251,8 @@ async function handler(req: Request, action: string): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
+  REQUEST_ORIGIN = req.headers.get('origin') ?? APP
+  if (req.method === 'OPTIONS') return new Response(null, { headers: cors() })
   const url = new URL(req.url)
   const action = url.searchParams.get('action') ?? 'status'
   return handler(req, action)
