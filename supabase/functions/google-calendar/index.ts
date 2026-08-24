@@ -22,6 +22,11 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const CAL_API = 'https://www.googleapis.com'
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 
+// Google requires an exact redirect_uri match against the registered HTTPS
+// URL. Deriving it from req.url yields the edge runtime's internal http://
+// origin, which always mismatches — so anchor it to the public project URL.
+const CALLBACK_URI = `${new URL(DBURL).origin}/functions/v1/google-calendar?action=callback`
+
 // CORS follows the calling app's origin when it is on the allow-list.
 // Origins are scheme+host+port only — APP may carry a path (Pages project
 // sites), so derive the bare origin for comparison.
@@ -151,7 +156,7 @@ async function handler(req: Request, action: string): Promise<Response> {
     const ex = await postForm(TOKEN_URL, {
       client_id: CID, client_secret: CSECRET, code,
       code_verifier: String(row.code_verifier),
-      redirect_uri: `${url.origin}/functions/v1/google-calendar?action=callback`,
+      redirect_uri: CALLBACK_URI,
       grant_type: 'authorization_code',
     })
     if (!ex.ok || !ex.data?.refresh_token) {
@@ -185,7 +190,7 @@ async function handler(req: Request, action: string): Promise<Response> {
       if (error) return json({ error: error.message }, 500)
       const link = new URL(AUTH_URL)
       link.searchParams.set('client_id', CID)
-      link.searchParams.set('redirect_uri', `${url.origin}/functions/v1/google-calendar?action=callback`)
+      link.searchParams.set('redirect_uri', CALLBACK_URI)
       link.searchParams.set('response_type', 'code')
       link.searchParams.set('scope', SCOPE)
       link.searchParams.set('state', state)
