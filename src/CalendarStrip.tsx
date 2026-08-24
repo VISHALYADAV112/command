@@ -1,19 +1,35 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { listTodayEvents, type CalendarEvent } from './lib/calendar'
+import { getCalendarStatus, listTodayEvents, type CalendarEvent } from './lib/calendar'
 
+// The strip stays silent until Calendar is actually connected — "not
+// connected" is a normal state, not an error worth surfacing on the
+// dashboard (spec §13.3: failures are bounded, quiet by default).
 export function CalendarStrip({ session }: { session: Session | null }) {
   const [events, setEvents] = useState<CalendarEvent[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
     if (!session) return
-    listTodayEvents(session).then(setEvents).catch((err: Error) => setError(err.message))
+    let cancelled = false
+    setUnavailable(false)
+    getCalendarStatus(session)
+      .then((status) => {
+        if (cancelled) return
+        if (!status.connected) return
+        return listTodayEvents(session).then((next) => {
+          if (!cancelled) setEvents(next)
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setUnavailable(true)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [session])
 
-  if (!session) return null
-  if (error) return <div className="calendar-strip calendar-error">{error}</div>
-  if (events.length === 0) return null
+  if (!session || unavailable || events.length === 0) return null
 
   return (
     <div className="calendar-strip">
