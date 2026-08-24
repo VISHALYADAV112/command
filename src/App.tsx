@@ -68,7 +68,7 @@ function Icon({ name }: { name: 'arrow' | 'check' | 'close' | 'plus' | 'settings
     check: <path d="m5 12 4 4L19 6" />,
     close: <><path d="m6 6 12 12" /><path d="m18 6-12 12" /></>,
     plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
-    settings: <><path d="M11 17l2 -3 4" /><circle cx="9" cy="15" r="0" /><circle cx="15" cy="10" r="0" /><circle cx="12" cy="12.5" r="0" /></>,
+      settings: <><path d="M4 8h16" /><path d="M4 16h16" /><circle cx="9" cy="8" r="2.5" /><circle cx="15" cy="16" r="2.5" /></>,
     spark: <><path d="m12 3 1.4 4.2L18 9l-4.6 1.8L12 15l-1.4-4.2L6 9l4.6-1.8L12 3Z" /><path d="m19 15 .7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9L19 15Z" /></>,
   }
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square" strokeLinejoin="miter">{paths[name]}</svg>

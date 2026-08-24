@@ -22,9 +22,17 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const CAL_API = 'https://www.googleapis.com'
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 
-// CORS follows the calling app's origin when it is on the allow-list
-// (production Pages URL plus local dev); anything else gets APP.
-const ALLOWED_ORIGINS = new Set([APP, 'http://localhost:5173', 'http://127.0.0.1:5173'])
+// CORS follows the calling app's origin when it is on the allow-list.
+// Origins are scheme+host+port only — APP may carry a path (Pages project
+// sites), so derive the bare origin for comparison.
+const SITE_ORIGIN = (() => {
+  try {
+    return new URL(APP).origin
+  } catch {
+    return APP
+  }
+})()
+const ALLOWED_ORIGINS = new Set([SITE_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'])
 let REQUEST_ORIGIN = APP
 
 function cors(): Record<string, string> {
