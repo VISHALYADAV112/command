@@ -48,8 +48,9 @@ CI runs all three on every push and PR. Do not push red.
 
 ## Project conventions
 
-- IDs are client-generated (`uid('app')` → `app-<uuid>`); writes use upsert so
-  create and edit share one path.
+- IDs are client-generated UUIDs (`uid()` → valid uuid, no textual prefixes —
+  every remote `id` column is `uuid` typed); writes use upsert so create and
+  edit share one path, and inserts must include `user_id` explicitly.
 - Dates are `YYYY-MM-DD` strings via `dateKey`; weeks start Monday.
 - Failures surface as bounded quiet messages (toast / muted text), never alert().
 - Secrets: only publishable keys in browser env (`VITE_*`). Service keys live in
