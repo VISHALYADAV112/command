@@ -27,15 +27,18 @@ Deployed automatically to GitHub Pages on every push to `main`.
 ## Implemented
 
 - Four derived bindu states for today's Node, DSA, Math, and job-hunt floors.
-- Fast daily log sheet with habits, diet, minutes, and a short note.
-- Monday–Sunday totals against the 7h / 14h / 7h / 7h weekly budgets.
-- Closing windows, active applications, people due, and active work on one field.
-- Recall-first learning review with the specified 21 / 7 / 3 / 1 day intervals.
+- Fast daily log sheet (with unsaved-draft retention) and recall-first learning
+  review using the specified 21 / 7 / 3 / 1 day intervals and mastery retirement.
+- Hash-routed views: Today, People, Projects, Ideas, Learning.
+- Application lifecycle: create/edit/delete with lane, channel, status, CTC,
+  window, follow-up date, referrer link, and job URL; one-tap "Deadline →
+  Calendar" writes for applications and projects (idempotent).
+- Ideas capture with status progression; concept capture feeding the review
+  queue; people list feeding referral selection.
 - Google sign-in (owner-only via a database signup guard) and Google Calendar:
   connect/disconnect, live "Today" strip of events; OAuth refresh tokens stored
   AES-256-GCM encrypted in the database with the key held only server-side.
-- Local demo persistence when unconfigured (`command.prototype.v1`).
-- PWA shell, manifest, service worker, exportable SVG assets, JSON/CSV export.
+- CSP headers, service-worker update prompt, JSON/CSV export, PWA install.
 
 ## Data core
 
@@ -54,5 +57,5 @@ writes, and token refresh; it validates the user JWT itself.
 
 ## Next build boundary
 
-Feature breadth: application lifecycle editing, People/Projects/Ideas views,
-concept capture, hash routing, offline draft retention, e2e tests.
+Resilience and depth: stale-data indication, Playwright e2e, database/RLS
+test harness, pinned-IST day keys, edge-function rate limiting.
