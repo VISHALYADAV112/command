@@ -110,13 +110,44 @@ function cal(accessToken: string, path: string, init?: RequestInit) {
   })
 }
 
+// Hosted PostgREST does not expose the vault schema, so supabase-js
+// `c.vault.*` cannot run here. The Google refresh token is instead stored
+// AES-256-GCM encrypted in integration_accounts; the key lives only in the
+// GOOGLE_TOKEN_KEY edge secret — never in the database or browser.
+const TOKEN_KEY_B64 = Deno.env.get('GOOGLE_TOKEN_KEY')!
+
+async function tokenKey(): Promise<CryptoKey> {
+  const raw = Uint8Array.from(atob(TOKEN_KEY_B64), (ch) => ch.charCodeAt(0))
+  return crypto.subtle.importKey('raw', raw.buffer, 'AES-GCM', false, ['encrypt', 'decrypt'])
+}
+
+async function encryptToken(plain: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const key = await tokenKey()
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain)))
+  const pack = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
+  return `${pack(iv)}.${pack(ct)}`
+}
+
+async function decryptToken(packed: string): Promise<string | null> {
+  try {
+    const [ivB64, ctB64] = packed.split('.')
+    const unpack = (b64: string) => Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))
+    const key = await tokenKey()
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: unpack(ivB64) }, key, unpack(ctB64),
+    )
+    return new TextDecoder().decode(plain)
+  } catch {
+    return null
+  }
+}
+
 async function accessToken(c: SupabaseClient, userId: string) {
   const { data, error } = await c.from('integration_accounts')
-    .select('refresh_secret_id').eq('user_id', userId).maybeSingle()
-  if (error || !data?.refresh_secret_id) return null
-  const vault = await c.vault.read({ select: 'id,secret' })
-  if (vault.error) return null
-  const secret = (vault.data ?? []).find((r) => r.id === data.refresh_secret_id)?.secret
+    .select('refresh_token_enc').eq('user_id', userId).maybeSingle()
+  if (error || !data?.refresh_token_enc) return null
+  const secret = await decryptToken(data.refresh_token_enc)
   if (!secret) return null
   const refreshed = await postForm(TOKEN_URL, {
     client_id: CID, client_secret: CSECRET, refresh_token: secret, grant_type: 'refresh_token',
@@ -165,21 +196,15 @@ async function handler(req: Request, action: string): Promise<Response> {
       if (!ex.ok || !ex.data?.refresh_token) {
         console.error(`calendar callback: token exchange failed (${ex.status})`, ex.data)
       } else {
-        const secret = await c.vault.createSecret({
-          name: `google_calendar_refresh_${row.user_id}`, secret: ex.data.refresh_token,
-        })
-        if (secret.error) {
-          console.error('calendar callback: vault store failed', secret.error)
-        } else {
-          const { error: upsertError } = await c.from('integration_accounts').upsert({
-            user_id: row.user_id, provider: 'google',
-            provider_account_id: ex.data.sub ?? '',
-            scopes: [SCOPE], refresh_secret_id: String(secret.data.id),
-            status: 'connected', last_verified_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,provider' })
-          if (upsertError) console.error('calendar callback: account upsert failed', upsertError)
-          else ok = true
-        }
+        const enc = await encryptToken(ex.data.refresh_token)
+        const { error: upsertError } = await c.from('integration_accounts').upsert({
+          user_id: row.user_id, provider: 'google',
+          provider_account_id: ex.data.sub ?? '',
+          scopes: [SCOPE], refresh_token_enc: enc,
+          status: 'connected', last_verified_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,provider' })
+        if (upsertError) console.error('calendar callback: account upsert failed', upsertError)
+        else ok = true
       }
     } finally {
       // Consume the state no matter which path ran — one attempt per code.
@@ -222,9 +247,6 @@ async function handler(req: Request, action: string): Promise<Response> {
     }
 
     case 'disconnect': {
-      const { data } = await c.from('integration_accounts')
-        .select('refresh_secret_id').eq('user_id', uid).maybeSingle()
-      if (data?.refresh_secret_id) await c.vault.deleteSecret(String(data.refresh_secret_id))
       await c.from('integration_accounts').delete().eq('user_id', uid)
       return json({ ok: true })
     }
