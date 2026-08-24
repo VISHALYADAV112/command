@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { CommandData, DailyLog, JobApplication, LearningItem, Settings } from '../types'
+import type { CommandData, DailyLog, Idea, JobApplication, LearningItem, Person, Project, Settings } from '../types'
 import type {
-  DbDailyLog, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings,
+  DbDailyLog, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings,
 } from './database.types'
 import {
-  logToDb, mapApplication, mapLearning, mapLog, mapPerson, mapProject, mapSettings,
+  logToDb, mapApplication, mapIdea, mapLearning, mapLog, mapPerson, mapProject, mapSettings,
   applicationToDb,
 } from './mappers'
 
@@ -54,13 +54,49 @@ export async function loadRemoteData(client: SupabaseClient): Promise<CommandDat
   const people = await client.from('people').select('*')
   const applications = await client.from('job_applications').select('*')
   const projects = await client.from('projects').select('*')
+  const ideas = await client.from('ideas').select('*')
   return {
     logs: (logs.data ?? []).map((row) => mapLog(row as DbDailyLog)),
     learning: (learning.data ?? []).map((row) => mapLearning(row as DbLearningItem)),
     people: (people.data ?? []).map((row) => mapPerson(row as DbPerson)),
     applications: (applications.data ?? []).map((row) => mapApplication(row as DbJobApplication)),
     projects: (projects.data ?? []).map((row) => mapProject(row as DbProject)),
+    ideas: (ideas.data ?? []).map((row) => mapIdea(row as DbIdea)),
   }
+}
+
+export async function savePersonRow(client: SupabaseClient, person: Person): Promise<void> {
+  await client.from('people').upsert({
+    id: person.id,
+    name: person.name,
+    company: person.company || null,
+    status: person.status,
+    next_follow_up_on: person.nextFollowUpOn,
+  })
+}
+
+export async function saveProjectRow(client: SupabaseClient, project: Project): Promise<void> {
+  await client.from('projects').upsert({
+    id: project.id,
+    name: project.name,
+    project_type: project.type,
+    status: project.status,
+    deadline_on: project.deadlineOn,
+    next_action: project.nextAction || null,
+  })
+}
+
+export async function saveIdeaRow(client: SupabaseClient, idea: Idea): Promise<void> {
+  await client.from('ideas').upsert({
+    id: idea.id,
+    idea: idea.idea,
+    status: idea.status,
+    next_action: idea.nextAction || null,
+  })
+}
+
+export async function deleteRow(client: SupabaseClient, table: 'job_applications' | 'people' | 'projects' | 'ideas', id: string): Promise<void> {
+  await client.from(table).delete().eq('id', id)
 }
 
 export async function loadRemoteSettings(client: SupabaseClient): Promise<Settings> {
@@ -76,11 +112,11 @@ export async function upsertLog(client: SupabaseClient, log: DailyLog): Promise<
   await client.from('daily_logs').upsert({ ...logToDb(log) }, { onConflict: 'user_id,day' })
 }
 
-export async function insertApplication(client: SupabaseClient, app: JobApplication): Promise<void> {
-  await client.from('job_applications').insert({ ...applicationToDb(app) })
+export async function upsertApplicationRow(client: SupabaseClient, app: JobApplication): Promise<void> {
+  await client.from('job_applications').upsert({ ...applicationToDb(app) })
 }
 
-export async function updateLearning(client: SupabaseClient, item: LearningItem): Promise<void> {
+export async function upsertLearning(client: SupabaseClient, item: LearningItem): Promise<void> {
   await client.from('learning_items').upsert({
     id: item.id,
     concept: item.concept,

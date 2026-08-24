@@ -8,7 +8,7 @@ describe('daily instrument', () => {
   it('opens and saves today without creating a second interaction path', () => {
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: /today/i }))
+    fireEvent.click(screen.getByRole('button', { name: /(log|continue) today/i }))
     expect(screen.getByRole('dialog', { name: 'Log today' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Add 15 minutes to Math' }))

@@ -27,14 +27,20 @@ export type ApplicationStatus =
   | 'offer'
   | 'rejected'
 
+export type ApplicationChannel = 'india_product' | 'gcc' | 'remote_intl' | 'services'
+
 export interface JobApplication {
   id: string
   company: string
   role: string
   lane: 'sde' | 'ai_ml'
+  channel: ApplicationChannel
   status: ApplicationStatus
   windowClosesOn: string | null
   followUpOn: string | null
+  ctcLpa: number | null
+  referrerId: string | null
+  jobUrl: string
   nextAction: string
 }
 
@@ -66,10 +72,20 @@ export interface LearningItem {
   content: string
 }
 
+export type IdeaStatus = 'captured' | 'exploring' | 'validating' | 'dropped'
+
+export interface Idea {
+  id: string
+  idea: string
+  status: IdeaStatus
+  nextAction: string
+}
+
 export interface CommandData {
   logs: DailyLog[]
   applications: JobApplication[]
   people: Person[]
   projects: Project[]
   learning: LearningItem[]
+  ideas: Idea[]
 }

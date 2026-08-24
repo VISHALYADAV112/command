@@ -1,5 +1,5 @@
-import type { CommandData, DailyLog, JobApplication, LearningItem, Person, Project, PracticeKey, Settings } from '../types'
-import type { DbDailyLog, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './database.types'
+import type { CommandData, DailyLog, Idea, JobApplication, LearningItem, Person, Project, PracticeKey, Settings } from '../types'
+import type { DbDailyLog, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './database.types'
 
 export function mapLog(row: DbDailyLog): DailyLog {
   return {
@@ -58,22 +58,40 @@ export function mapApplication(row: DbJobApplication): JobApplication {
     company: row.company,
     role: row.role,
     lane: row.lane,
+    channel: row.channel,
     status: row.status,
     windowClosesOn: row.window_closes_on,
     followUpOn: row.follow_up_on,
+    ctcLpa: row.ctc_lpa ?? null,
+    referrerId: row.referrer_id,
+    jobUrl: row.job_url ?? '',
     nextAction: row.next_action ?? '',
   }
 }
 
-export function applicationToDb(app: JobApplication): Pick<DbJobApplication, 'company' | 'role' | 'lane' | 'status' | 'window_closes_on' | 'follow_up_on' | 'next_action'> {
+export function applicationToDb(app: JobApplication): DbJobApplication {
   return {
+    id: app.id,
     company: app.company,
     role: app.role,
     lane: app.lane,
+    channel: app.channel,
     status: app.status,
-    window_closes_on: app.windowClosesOn,
-    follow_up_on: app.followUpOn,
+    referrer_id: app.referrerId,
+    ctc_lpa: app.ctcLpa,
     next_action: app.nextAction || null,
+    follow_up_on: app.followUpOn,
+    window_closes_on: app.windowClosesOn,
+    job_url: app.jobUrl || null,
+  }
+}
+
+export function mapIdea(row: DbIdea): Idea {
+  return {
+    id: row.id,
+    idea: row.idea,
+    status: row.status,
+    nextAction: row.next_action ?? '',
   }
 }
 
