@@ -8,11 +8,12 @@ interface Props {
   today: Date
   createSignal?: number
   onCapture: (item: LearningItem) => void
+  onDelete: (id: string) => void
 }
 
 const trackLabels = { node: 'Node', dsa: 'DSA', math: 'Math' } as const
 
-export function LearningView({ items, today, createSignal = 0, onCapture }: Props) {
+export function LearningView({ items, today, createSignal = 0, onCapture, onDelete }: Props) {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -47,11 +48,21 @@ export function LearningView({ items, today, createSignal = 0, onCapture }: Prop
                     <span className={`confidence c-${item.confidence}`}>C{item.confidence}</span>
                   </div>
                   <p>{item.content}</p>
-                  <time dateTime={item.nextReviewOn ?? ''}>
-                    {item.nextReviewOn === null
-                      ? 'Retired — mastered twice'
-                      : `Review ${dateKey(today) === item.nextReviewOn ? 'today' : item.nextReviewOn.slice(5)}`}
-                  </time>
+                  <div className="learning-item-foot">
+                    <time dateTime={item.nextReviewOn ?? ''}>
+                      {item.nextReviewOn === null
+                        ? 'Retired — mastered twice'
+                        : `Review ${dateKey(today) === item.nextReviewOn ? 'today' : item.nextReviewOn.slice(5)}`}
+                    </time>
+                    <button
+                      className="icon-button learning-delete"
+                      type="button"
+                      aria-label={`Delete ${item.concept}`}
+                      onClick={() => onDelete(item.id)}
+                    >
+                      <Icon name="close" />
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>

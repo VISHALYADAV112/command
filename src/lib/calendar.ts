@@ -57,3 +57,10 @@ export async function createCalendarEvent(
 ): Promise<void> {
   await call(session, 'event', { method: 'POST', body: payload })
 }
+
+export async function deleteCalendarEvent(
+  session: Session,
+  payload: { entity_type: 'project_deadline' | 'application_deadline'; entity_id: string },
+): Promise<void> {
+  await call(session, 'event_delete', { method: 'POST', body: payload })
+}

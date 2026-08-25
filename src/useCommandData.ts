@@ -10,6 +10,7 @@ import {
   saveRemoteSettings, upsertApplicationRow, upsertLearning, upsertLog,
 } from './lib/api'
 import { settings as defaultSettings } from './domain'
+import { deleteCalendarEvent } from './lib/calendar'
 
 const DATA_KEY = 'command.prototype.v1'
 const SETTINGS_KEY = 'command.prototype.settings.v1'
@@ -59,6 +60,7 @@ export interface UseCommandDataResult {
   deleteIdea: (id: string) => void
   completeReview: (item: LearningItem) => void
   captureConcept: (item: LearningItem) => void
+  deleteLearning: (id: string) => void
   saveSettings: (next: Settings) => void
   signOut: () => void
 }
@@ -127,18 +129,31 @@ export function useCommandData(): UseCommandDataResult {
       : [item, ...list]
   }
 
+  // A deadline pushed to Calendar must not outlive the thing it points at.
+  function unlinkDeadline(entityType: 'project_deadline' | 'application_deadline', entityId: string): void {
+    if (mode === 'live' && session) {
+      void deleteCalendarEvent(session, { entity_type: entityType, entity_id: entityId })
+        .catch((error) => console.error('calendar unlink failed', error))
+    }
+  }
+
   function saveLog(log: DailyLog): void {
     update((current) => ({ ...current, logs: [...current.logs.filter((item) => item.day !== log.day), log] }))
     remote((client, userId) => upsertLog(client, log, userId))
   }
 
   function saveApplication(app: JobApplication): void {
-    update((current) => ({ ...current, applications: replace(current.applications, app) }))
+    update((current) => {
+      const previous = current.applications.find((item) => item.id === app.id)
+      if (previous?.windowClosesOn && !app.windowClosesOn) unlinkDeadline('application_deadline', app.id)
+      return { ...current, applications: replace(current.applications, app) }
+    })
     remote((client, userId) => upsertApplicationRow(client, app, userId))
   }
 
   function deleteApplication(id: string): void {
     update((current) => ({ ...current, applications: current.applications.filter((item) => item.id !== id) }))
+    unlinkDeadline('application_deadline', id)
     remote((client) => deleteRow(client, 'job_applications', id))
   }
 
@@ -153,12 +168,17 @@ export function useCommandData(): UseCommandDataResult {
   }
 
   function saveProject(project: Project): void {
-    update((current) => ({ ...current, projects: replace(current.projects, project) }))
+    update((current) => {
+      const previous = current.projects.find((item) => item.id === project.id)
+      if (previous?.deadlineOn && !project.deadlineOn) unlinkDeadline('project_deadline', project.id)
+      return { ...current, projects: replace(current.projects, project) }
+    })
     remote((client, userId) => saveProjectRow(client, project, userId))
   }
 
   function deleteProject(id: string): void {
     update((current) => ({ ...current, projects: current.projects.filter((item) => item.id !== id) }))
+    unlinkDeadline('project_deadline', id)
     remote((client) => deleteRow(client, 'projects', id))
   }
 
@@ -183,6 +203,11 @@ export function useCommandData(): UseCommandDataResult {
   function captureConcept(item: LearningItem): void {
     update((current) => ({ ...current, learning: replace(current.learning, item) }))
     remote((client) => upsertLearning(client, item))
+  }
+
+  function deleteLearning(id: string): void {
+    update((current) => ({ ...current, learning: current.learning.filter((item) => item.id !== id) }))
+    remote((client) => deleteRow(client, 'learning_items', id))
   }
 
   function saveSettings(next: Settings): void {
@@ -227,6 +252,7 @@ export function useCommandData(): UseCommandDataResult {
     deleteIdea,
     completeReview,
     captureConcept,
+    deleteLearning,
     saveSettings,
     signOut: signOutFromCommand,
   }

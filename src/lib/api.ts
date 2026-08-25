@@ -97,7 +97,7 @@ export async function saveIdeaRow(client: SupabaseClient, idea: Idea, userId: st
   })
 }
 
-export async function deleteRow(client: SupabaseClient, table: 'job_applications' | 'people' | 'projects' | 'ideas', id: string): Promise<void> {
+export async function deleteRow(client: SupabaseClient, table: 'job_applications' | 'people' | 'projects' | 'ideas' | 'learning_items', id: string): Promise<void> {
   await client.from(table).delete().eq('id', id)
 }
 

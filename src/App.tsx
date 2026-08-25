@@ -602,7 +602,7 @@ export function App() {
     data, settings, mode, session, ready,
     saveLog, saveApplication, deleteApplication,
     savePerson, deletePerson, saveProject, deleteProject, saveIdea, deleteIdea,
-    completeReview, saveSettings, signOut,
+    completeReview, deleteLearning, saveSettings, signOut,
   } = useCommandData()
   const [route, navigate] = useHashRoute()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -775,7 +775,7 @@ export function App() {
         )}
         {route === 'learning' && (
           <main>
-            <LearningView items={data.learning} today={today} createSignal={route === 'learning' ? createTick : 0} onCapture={(item) => { completeReview(item); showNotice('Concept captured') }} />
+            <LearningView items={data.learning} today={today} createSignal={route === 'learning' ? createTick : 0} onCapture={(item) => { completeReview(item); showNotice('Concept captured') }} onDelete={(id) => { deleteLearning(id); showNotice('Concept removed') }} />
           </main>
         )}
         <footer><img src="./assets/command-mark.svg" alt="" /><span>Keep the centre clear.</span></footer>

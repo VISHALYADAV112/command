@@ -686,6 +686,29 @@ main {
   color: #9b98ab;
 }
 
+.learning-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.learning-delete {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  opacity: 0.55;
+}
+
+.learning-delete:hover {
+  opacity: 1;
+}
+
+.learning-delete svg {
+  width: 11px;
+  height: 11px;
+}
+
 .people-list {
   margin-top: 13px;
   display: grid;

@@ -299,6 +299,37 @@ async function handler(req: Request, action: string): Promise<Response> {
       return json({ ok: true, event: { id: res.data.id, url: res.data.htmlLink ?? null } })
     }
 
+    // Remove the Calendar event linked to a dashboard entity (deadline
+    // cleared, project/application deleted). Best-effort on the Google side
+    // — the link row always goes so state cannot linger.
+    case 'event_delete': {
+      const body = await req.json().catch(() => null)
+      if (!body || typeof body.entity_type !== 'string' || typeof body.entity_id !== 'string') {
+        return json({ error: 'Invalid body' }, 400)
+      }
+      const { data: link } = await c.from('integration_links')
+        .select('external_id').eq('user_id', uid).eq('provider', 'google')
+        .eq('external_type', 'calendar_event')
+        .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
+        .maybeSingle()
+      if (link?.external_id) {
+        const token = await accessToken(c, uid)
+        if (token) {
+          const del = await cal(token,
+            `/calendar/v3/calendars/primary/events/${encodeURIComponent(link.external_id)}`,
+            { method: 'DELETE' })
+          if (!del.ok && del.status !== 404 && del.status !== 410) {
+            console.error('calendar event delete failed', del.status, del.data)
+          }
+        }
+      }
+      await c.from('integration_links')
+        .delete().eq('user_id', uid).eq('provider', 'google')
+        .eq('external_type', 'calendar_event')
+        .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
+      return json({ ok: true })
+    }
+
     default:
       return json({ error: 'Unknown action' }, 400)
   }
