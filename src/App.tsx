@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppHeader } from './AppHeader'
 import { AuthScreen } from './AuthScreen'
+import { OAuthConsentScreen } from './OAuthConsentScreen'
 import { CalendarStrip } from './CalendarStrip'
 import { SettingsSheet } from './SettingsSheet'
 import { applyRecall, dateKey, emptyLog } from './domain'
@@ -33,6 +34,7 @@ export function App() {
   const [createTick, setCreateTick] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [updateReady, setUpdateReady] = useState(false)
+  const authorizationId = oauthAuthorizationId()
 
   useEffect(() => {
     function onUpdateReady() { setUpdateReady(true) }
@@ -107,6 +109,7 @@ export function App() {
   }
 
   if (command.mode === 'configuring') return <AuthScreen />
+  if (authorizationId && command.mode === 'live') return <OAuthConsentScreen authorizationId={authorizationId} />
   if (command.syncState === 'error' && !command.data) {
     return <div className="loading-state loading-error"><p>{command.syncMessage}</p><button className="secondary-button" type="button" onClick={command.retrySync}>Retry</button></div>
   }
@@ -169,4 +172,9 @@ function explainCalendarError(error: unknown): string {
     const parsed = JSON.parse(raw) as { detail?: { error?: { message?: string }; message?: string }; error?: string }
     return parsed.detail?.error?.message ?? parsed.detail?.message ?? parsed.error ?? raw.slice(0, 140)
   } catch { return raw.slice(0, 140) || 'unreachable' }
+}
+
+function oauthAuthorizationId(): string | null {
+  if (typeof window === 'undefined' || window.location.hash !== '#/oauth/consent') return null
+  return new URLSearchParams(window.location.search).get('authorization_id')
 }

@@ -178,12 +178,34 @@ export interface Database {
         window_started_at: string
         request_count: number
       }>
+      mcp_audit_log: Table<{
+        id: string
+        user_id: string
+        client_id: string
+        tool_name: string
+        input_summary: Json
+        success: boolean
+        error_message: string | null
+        duration_ms: number
+        created_at: string
+      }>
     }
     Views: { [_ in never]: never }
     Functions: {
       consume_edge_rate_limit: {
         Args: { p_user_id: string; p_bucket: string; p_limit: number; p_window_seconds: number }
         Returns: boolean
+      }
+      search_command: {
+        Args: { p_query: string; p_limit?: number }
+        Returns: Array<{
+          entity_type: string
+          entity_id: string
+          title: string
+          detail: string | null
+          status: string | null
+          due_on: string | null
+        }>
       }
       set_updated_at: { Args: never; Returns: unknown }
       validate_application_referrer: { Args: never; Returns: unknown }

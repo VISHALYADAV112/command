@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(17);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.daily_logs'::regclass),
@@ -9,6 +9,10 @@ select ok(
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.learning_items'::regclass),
   'learning_items has RLS enabled'
+);
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.mcp_audit_log'::regclass),
+  'MCP audit log has RLS enabled'
 );
 select is(
   (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'daily_logs'),
@@ -38,6 +42,16 @@ select has_function(
   array['uuid', 'text', 'integer', 'integer'],
   'atomic edge rate limiter exists'
 );
+select has_function(
+  'public',
+  'search_command',
+  array['text', 'integer'],
+  'user-scoped MCP search exists'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.mcp_audit_log', 'insert'),
+  'MCP clients cannot forge audit records'
+);
 
 set local session_replication_role = replica;
 insert into public.profiles (id, email) values
@@ -48,6 +62,12 @@ set local session_replication_role = origin;
 insert into public.daily_logs (user_id, day, note) values
   ('11111111-1111-4111-8111-111111111111', '2026-08-24', 'one'),
   ('22222222-2222-4222-8222-222222222222', '2026-08-24', 'two');
+insert into public.ideas (user_id, idea) values
+  ('11111111-1111-4111-8111-111111111111', 'MCP idea one'),
+  ('22222222-2222-4222-8222-222222222222', 'MCP idea two');
+insert into public.mcp_audit_log (user_id, client_id, tool_name, success, duration_ms) values
+  ('11111111-1111-4111-8111-111111111111', 'client-one', 'command_get_today', true, 1),
+  ('22222222-2222-4222-8222-222222222222', 'client-two', 'command_get_today', true, 1);
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
@@ -61,6 +81,16 @@ select is(
   (select count(*)::integer from public.profiles),
   1,
   'a user sees only their own profile'
+);
+select results_eq(
+  $$ select title from public.search_command('MCP idea', 20) $$,
+  $$ values ('MCP idea one'::text) $$,
+  'MCP search returns only the authenticated user''s data'
+);
+select results_eq(
+  $$ select client_id from public.mcp_audit_log $$,
+  $$ values ('client-one'::text) $$,
+  'a user sees only their own MCP audit records'
 );
 select throws_ok(
   $$ insert into public.daily_logs (user_id, day) values ('22222222-2222-4222-8222-222222222222', '2026-08-25') $$,

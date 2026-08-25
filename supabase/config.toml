@@ -1,6 +1,20 @@
 project_id = "command"
 
+[auth]
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**"]
+
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = true
+
 # The function authenticates bearer tokens itself. Its OAuth callback is
 # intentionally unauthenticated and protected by one-time state plus PKCE.
 [functions.google-calendar]
+verify_jwt = false
+
+# OAuth discovery and MCP initialization are intentionally unauthenticated;
+# the function validates Supabase OAuth bearer tokens itself.
+[functions.command-mcp]
 verify_jwt = false

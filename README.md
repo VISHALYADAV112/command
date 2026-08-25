@@ -41,6 +41,23 @@ Deployed automatically to GitHub Pages on every push to `main`.
   connect/disconnect, live "Today" strip of events; OAuth refresh tokens stored
   AES-256-GCM encrypted in the database with the key held only server-side.
 - CSP headers, service-worker update prompt, JSON/CSV export, PWA install.
+- Remote MCP access for AI clients through Supabase OAuth 2.1. The initial
+  tools expose today/week context, search, projects, applications, learning
+  due, and idempotent capture; settings shows and revokes connected clients.
+
+## Connect an AI client
+
+Use the MCP URL shown under **Settings → AI connections**, or:
+
+```text
+https://<project-ref>.supabase.co/functions/v1/command-mcp
+```
+
+The client discovers Supabase OAuth, opens Command's consent screen, and asks
+you to sign in. No model API key is required. Access is limited by the same
+Postgres RLS policies as the app, writes are idempotent, and tool calls are
+recorded in a private audit log. Clients that support dynamic OAuth client
+registration need only the URL above.
 
 ## Data core
 
@@ -57,6 +74,7 @@ Supabase migrations under `supabase/migrations/`:
 9. complete application fields and edge-function rate limiting
 10. authenticated core-table grants (still owner-filtered by RLS)
 11. active-project next-action invariant
+12. MCP audit log and user-scoped cross-entity search
 
 The `google-calendar` edge function handles the PKCE flow, idempotent event
 writes, token revocation/refresh, request throttling, and request-scoped CORS;
@@ -70,8 +88,9 @@ CI runs typecheck/build, Vitest, mobile Playwright flows, and pgTAP RLS tests.
 After applying a migration locally, run `npm run db:types` to refresh the
 generated Supabase contract; app-specific row aliases live separately in
 `src/lib/db.rows.ts`, so regeneration is safe.
-Backend deployment is an explicit manual GitHub Action (`Deploy Supabase`) so
-schema/function changes cannot reach production accidentally. Configure its
+Backend deployment is an explicit manual GitHub Action (`Deploy Supabase`). It
+applies migrations, enables the Supabase OAuth server, and deploys both edge
+functions. Configure its
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID`
 secrets. Configure the edge secrets `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, and `APP_ORIGIN` in Supabase before

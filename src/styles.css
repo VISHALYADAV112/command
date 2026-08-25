@@ -1954,6 +1954,32 @@ textarea:focus-visible {
   text-decoration: none;
 }
 
+.oauth-consent-card { max-width: 520px; }
+
+.mcp-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mcp-endpoint code {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 11px;
+}
+.mcp-grants { display: grid; gap: 8px; margin-top: 12px; }
+.mcp-grants > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.mcp-grants span { display: grid; gap: 3px; }
+.mcp-grants small { color: var(--muted); }
+
 /* Idea view */
 .idea-item .idea-actions {
   display: flex;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { practices } from './domain'
+import { McpConnections } from './McpConnections'
 import type { Settings } from './types'
 import type { CommandMode } from './useCommandData'
 import { ConfirmSheet, Sheet } from './ui'
@@ -91,6 +92,8 @@ export function SettingsSheet({
           </div>
           <div className="form-actions"><button className="primary-button" type="button" onClick={save}><span>Save targets</span></button></div>
         </div>
+
+        <McpConnections enabled={mode === 'live'} />
 
         <div className="settings-group">
           <h3>Google Calendar</h3>

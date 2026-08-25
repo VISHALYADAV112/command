@@ -30,3 +30,8 @@ export function edgeBaseUrl(): string {
   const project = SUPABASE_URL.replace(/^https?:\/\//, '').replace(/\.supabase\.co.*$/, '')
   return `https://${project}.supabase.co/functions/v1/google-calendar`
 }
+
+export function mcpEndpoint(): string {
+  const project = SUPABASE_URL.replace(/^https?:\/\//, '').replace(/\.supabase\.co.*$/, '')
+  return project ? `https://${project}.supabase.co/functions/v1/command-mcp` : ''
+}

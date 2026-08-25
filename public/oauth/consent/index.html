@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Command authorization</title></head>
+  <body>
+    <p>Opening Command authorization…</p>
+    <script>
+      const target = new URL('../../', window.location.href)
+      target.search = window.location.search
+      target.hash = '/oauth/consent'
+      window.location.replace(target.toString())
+    </script>
+  </body>
+</html>
