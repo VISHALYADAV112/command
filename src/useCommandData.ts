@@ -10,7 +10,10 @@ import {
   saveRemoteSettings, upsertApplicationRow, upsertLearning, upsertLog,
 } from './lib/api'
 import { settings as defaultSettings } from './domain'
-import { deleteCalendarEvent } from './lib/calendar'
+import {
+  applicationDeadlineEvent, createCalendarEvent, deleteCalendarEvent,
+  projectDeadlineEvent, type DeadlineEventPayload,
+} from './lib/calendar'
 
 const DATA_KEY = 'command.prototype.v1'
 const SETTINGS_KEY = 'command.prototype.settings.v1'
@@ -137,6 +140,15 @@ export function useCommandData(): UseCommandDataResult {
     }
   }
 
+  // And must follow the date when it moves — without adopting entities the
+  // user never pushed (the function skips those via update_only).
+  function resyncDeadline(payload: DeadlineEventPayload): void {
+    if (mode === 'live' && session) {
+      void createCalendarEvent(session, { ...payload, update_only: true })
+        .catch((error) => console.error('calendar resync failed', error))
+    }
+  }
+
   function saveLog(log: DailyLog): void {
     update((current) => ({ ...current, logs: [...current.logs.filter((item) => item.day !== log.day), log] }))
     remote((client, userId) => upsertLog(client, log, userId))
@@ -146,6 +158,7 @@ export function useCommandData(): UseCommandDataResult {
     update((current) => {
       const previous = current.applications.find((item) => item.id === app.id)
       if (previous?.windowClosesOn && !app.windowClosesOn) unlinkDeadline('application_deadline', app.id)
+      else if (previous?.windowClosesOn && app.windowClosesOn && previous.windowClosesOn !== app.windowClosesOn) resyncDeadline(applicationDeadlineEvent(app))
       return { ...current, applications: replace(current.applications, app) }
     })
     remote((client, userId) => upsertApplicationRow(client, app, userId))
@@ -171,6 +184,7 @@ export function useCommandData(): UseCommandDataResult {
     update((current) => {
       const previous = current.projects.find((item) => item.id === project.id)
       if (previous?.deadlineOn && !project.deadlineOn) unlinkDeadline('project_deadline', project.id)
+      else if (previous?.deadlineOn && project.deadlineOn && previous.deadlineOn !== project.deadlineOn) resyncDeadline(projectDeadlineEvent(project))
       return { ...current, projects: replace(current.projects, project) }
     })
     remote((client, userId) => saveProjectRow(client, project, userId))

@@ -281,6 +281,9 @@ async function handler(req: Request, action: string): Promise<Response> {
         .eq('external_type', 'calendar_event').maybeSingle()
       const date = String(body.start).slice(0, 10)
       const event = { summary: body.summary, description: body.description, start: { date }, end: { date } }
+      // update_only keeps Calendar opt-in: resyncs touch only entities the
+      // user already pushed, never creates events for ones they did not.
+      if (!existing?.external_id && body.update_only) return json({ ok: true, skipped: true })
       const res = existing?.external_id
         ? await cal(token, `/calendar/v3/calendars/primary/events/${existing.external_id}`,
           { method: 'PUT', body: JSON.stringify(event) })

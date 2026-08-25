@@ -31,7 +31,7 @@ import { AuthScreen } from './AuthScreen'
 import { SettingsSheet } from './SettingsSheet'
 import { CalendarStrip } from './CalendarStrip'
 import { exportCsv, exportData } from './lib/api'
-import { createCalendarEvent } from './lib/calendar'
+import { createCalendarEvent, applicationDeadlineEvent, projectDeadlineEvent } from './lib/calendar'
 import { GateMark, Icon, Sheet, uid } from './ui'
 import { PeopleView } from './views/PeopleView'
 import { ProjectsView } from './views/ProjectsView'
@@ -658,14 +658,7 @@ export function App() {
     }
     if (!app.windowClosesOn) return
     try {
-      await createCalendarEvent(session, {
-        summary: `${app.company} — window closes`,
-        description: `${app.role} application window closes today`,
-        start: `${app.windowClosesOn}T00:00:00`,
-        entity_type: 'application_deadline',
-        entity_id: app.id,
-        idempotency_key: `application-${app.id}-${app.windowClosesOn}`,
-      })
+      await createCalendarEvent(session, applicationDeadlineEvent(app))
       showNotice('Added to Calendar')
     } catch (error) {
       showNotice(`Calendar: ${explainCalendarError(error)}`)
@@ -679,14 +672,7 @@ export function App() {
     }
     if (!project.deadlineOn) return
     try {
-      await createCalendarEvent(session, {
-        summary: `${project.name} — deadline`,
-        description: `${project.type} project deadline`,
-        start: `${project.deadlineOn}T00:00:00`,
-        entity_type: 'project_deadline',
-        entity_id: project.id,
-        idempotency_key: `project-${project.id}-${project.deadlineOn}`,
-      })
+      await createCalendarEvent(session, projectDeadlineEvent(project))
       showNotice('Added to Calendar')
     } catch (error) {
       showNotice(`Calendar: ${explainCalendarError(error)}`)

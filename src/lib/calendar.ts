@@ -1,4 +1,5 @@
 import type { Session } from '@supabase/supabase-js'
+import type { JobApplication, Project } from '../types'
 import { edgeBaseUrl } from './config'
 
 const BASE = edgeBaseUrl()
@@ -51,11 +52,42 @@ export async function listTodayEvents(session: Session): Promise<CalendarEvent[]
   return (result.events ?? []) as CalendarEvent[]
 }
 
-export async function createCalendarEvent(
-  session: Session,
-  payload: { summary: string; description?: string; start: string; entity_type: string; entity_id: string; idempotency_key: string },
-): Promise<void> {
+export interface DeadlineEventPayload {
+  summary: string
+  description: string
+  start: string
+  entity_type: 'project_deadline' | 'application_deadline'
+  entity_id: string
+  idempotency_key: string
+  update_only?: boolean
+}
+
+export async function createCalendarEvent(session: Session, payload: DeadlineEventPayload): Promise<void> {
   await call(session, 'event', { method: 'POST', body: payload })
+}
+
+// One shape per pushed deadline so the manual button and the automatic
+// resync on date change stay in lockstep.
+export function projectDeadlineEvent(project: Project): DeadlineEventPayload {
+  return {
+    summary: `${project.name} — deadline`,
+    description: `${project.type} project deadline`,
+    start: `${project.deadlineOn}T00:00:00`,
+    entity_type: 'project_deadline',
+    entity_id: project.id,
+    idempotency_key: `project-${project.id}-${project.deadlineOn}`,
+  }
+}
+
+export function applicationDeadlineEvent(app: JobApplication): DeadlineEventPayload {
+  return {
+    summary: `${app.company} — window closes`,
+    description: `${app.role} application window closes today`,
+    start: `${app.windowClosesOn}T00:00:00`,
+    entity_type: 'application_deadline',
+    entity_id: app.id,
+    idempotency_key: `application-${app.id}-${app.windowClosesOn}`,
+  }
 }
 
 export async function deleteCalendarEvent(
