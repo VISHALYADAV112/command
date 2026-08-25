@@ -25,7 +25,7 @@ jobs:
         run: npm test
 
       - name: Install browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps webkit
 
       - name: Mobile end-to-end tests
         run: npm run test:e2e
