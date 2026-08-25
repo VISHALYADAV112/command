@@ -17,11 +17,11 @@ npm test
 npm run test:e2e
 ```
 
-Deployed automatically to GitHub Pages on every push to `main`.
+Deployed to Vercel from `main`.
 
 ## Live deployment
 
-- App: https://vishalyadav112.github.io/command/
+- App: https://command-beta-flax.vercel.app/
 - Backend: Supabase (Google auth restricted to the owner allow-list)
 - Environment: copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
 

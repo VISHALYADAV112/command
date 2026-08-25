@@ -5,9 +5,8 @@ import { isSupabaseConfigured } from './config'
 export async function signInWithGoogle(): Promise<void> {
   const client = getSupabase()
   if (!client) throw new Error('Supabase is not configured.')
-  // GitHub Pages project sites live under a subpath (/command/), but OAuth
-  // origins carry no path — without an explicit redirectTo, Supabase returns
-  // the browser to the bare origin and Pages 404s.
+  // Keep the provider callback clean because Supabase owns its query/hash.
+  // The pending MCP authorization survives the round trip in sessionStorage.
   const authorizationId = new URLSearchParams(window.location.search).get('authorization_id')
   if (authorizationId) sessionStorage.setItem('command:oauth-authorization-id', authorizationId)
   const { origin, pathname } = window.location
