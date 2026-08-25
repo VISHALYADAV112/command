@@ -14,6 +14,7 @@ Production build & tests:
 ```bash
 npm run build
 npm test
+npm run test:e2e
 ```
 
 Deployed automatically to GitHub Pages on every push to `main`.
@@ -29,9 +30,10 @@ Deployed automatically to GitHub Pages on every push to `main`.
 - Four derived bindu states for today's Node, DSA, Math, and job-hunt floors.
 - Fast daily log sheet (with unsaved-draft retention) and recall-first learning
   review using the specified 21 / 7 / 3 / 1 day intervals and mastery retirement.
-- Hash-routed views: Today, People, Projects, Ideas, Learning.
+- Hash-routed views: Today, Jobs, People, Projects, Ideas, Learning.
 - Application lifecycle: create/edit/delete with lane, channel, status, CTC,
-  window, follow-up date, referrer link, and job URL; one-tap "Deadline →
+  applied date, referral state, resume/Drive links, notes, window, follow-up,
+  referrer, and job URL; one-tap "Deadline →
   Calendar" writes for applications and projects (idempotent).
 - Ideas capture with status progression; concept capture feeding the review
   queue; people list feeding referral selection.
@@ -51,11 +53,26 @@ Supabase migrations under `supabase/migrations/`:
 5. delete policies for every table
 6. integration tables moved to public behind deny-by-default RLS
 7. encrypted OAuth token storage column
+8. referrer deletion cleanup
+9. complete application fields and edge-function rate limiting
+10. authenticated core-table grants (still owner-filtered by RLS)
+11. active-project next-action invariant
 
 The `google-calendar` edge function handles the PKCE flow, idempotent event
-writes, and token refresh; it validates the user JWT itself.
+writes, token revocation/refresh, request throttling, and request-scoped CORS;
+it validates the user JWT itself. `supabase/config.toml` records the required
+`verify_jwt = false` deployment mode because the OAuth callback is protected by
+one-time state and PKCE rather than an app JWT.
 
-## Next build boundary
+## Verification and backend deployment
 
-Resilience and depth: stale-data indication, Playwright e2e, database/RLS
-test harness, pinned-IST day keys, edge-function rate limiting.
+CI runs typecheck/build, Vitest, mobile Playwright flows, and pgTAP RLS tests.
+After applying a migration locally, run `npm run db:types` to refresh the
+generated Supabase contract; app-specific row aliases live separately in
+`src/lib/db.rows.ts`, so regeneration is safe.
+Backend deployment is an explicit manual GitHub Action (`Deploy Supabase`) so
+schema/function changes cannot reach production accidentally. Configure its
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID`
+secrets. Configure the edge secrets `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, and `APP_ORIGIN` in Supabase before
+deploying. Only the two publishable `VITE_*` values belong in browser builds.

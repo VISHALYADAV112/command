@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
+playwright-report/
+test-results/
 
 # Environment — never commit keys
 .env

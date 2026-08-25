@@ -24,8 +24,7 @@ describe('daily instrument', () => {
   it('navigates to the ideas view and captures an idea', () => {
     render(<App />)
 
-    const nav = document.querySelector('.view-nav') as HTMLElement
-    fireEvent.click(nav.querySelectorAll('button')[3]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Ideas' }))
     expect(screen.getByRole('heading', { name: 'Ideas' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /capture/i }))
@@ -44,9 +43,35 @@ describe('daily instrument', () => {
     expect(quickCapture).toHaveTextContent('Concept')
     expect(quickCapture).toHaveTextContent('Idea')
 
-    const nav = document.querySelector('.view-nav') as HTMLElement
-    fireEvent.click(nav.querySelectorAll('button')[4]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Learning' }))
     expect(screen.getByRole('heading', { name: 'Learning' })).toBeInTheDocument()
     expect(screen.getAllByText(/Sliding window/).length).toBeGreaterThan(0)
+  })
+
+  it('captures a concept into the learning library', () => {
+    render(<App />)
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Quick capture' })).getByRole('button', { name: 'Concept' }))
+    const dialog = screen.getByRole('dialog', { name: '+ Concept' })
+    fireEvent.change(within(dialog).getByLabelText('Concept'), { target: { value: 'Monotonic stack invariant' } })
+    fireEvent.change(within(dialog).getByLabelText('The note'), { target: { value: 'Pop candidates that can no longer answer later queries.' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Capture' }))
+
+    expect(screen.queryByRole('dialog', { name: '+ Concept' })).not.toBeInTheDocument()
+    expect(screen.getByText('Monotonic stack invariant')).toBeInTheDocument()
+  })
+
+  it('shows jobs as a full pipeline and confirms destructive actions', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Jobs' }))
+    expect(screen.getByRole('heading', { name: 'Applications' })).toBeInTheDocument()
+    expect(screen.getByText('Archive')).toBeInTheDocument()
+    expect(screen.getByText('Example Systems')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Atlassian Graduate Software Engineer/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('dialog', { name: 'Delete Atlassian?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }))
+    expect(screen.queryByRole('dialog', { name: 'Delete Atlassian?' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Atlassian' })).toBeInTheDocument()
   })
 })

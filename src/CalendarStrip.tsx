@@ -50,8 +50,7 @@ export function CalendarStrip({ session }: { session: Session | null }) {
 function formatStart(start: string | null): string {
   if (!start) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(start)) return 'All day'
-  const date = new Date(start)
-  const hh = date.getHours().toString().padStart(2, '0')
-  const mm = date.getMinutes().toString().padStart(2, '0')
-  return `${hh}:${mm}`
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(start))
 }

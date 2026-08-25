@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { Person } from '../types'
 import { dateKey } from '../domain'
-import { EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
+import { ConfirmSheet, EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
 
 const statusLabels: Record<Person['status'], string> = {
   to_reach_out: 'To reach out',
@@ -13,8 +13,8 @@ const statusLabels: Record<Person['status'], string> = {
 interface Props {
   people: Person[]
   today: Date
-  onSave: (person: Person) => void
-  onDelete: (id: string) => void
+  onSave: (person: Person) => boolean
+  onDelete: (id: string) => boolean
 }
 
 export function PeopleView({ people, today, onSave, onDelete }: Props) {
@@ -27,7 +27,7 @@ export function PeopleView({ people, today, onSave, onDelete }: Props) {
   })
 
   function blankPerson(): Person {
-    return { id: uid('person'), name: '', company: '', status: 'to_reach_out', nextFollowUpOn: dateKey(today) }
+    return { id: uid(), name: '', company: '', email: '', linkedinUrl: '', howKnown: null, status: 'to_reach_out', lastContactOn: null, nextFollowUpOn: dateKey(today), notes: '' }
   }
 
   return (
@@ -60,8 +60,8 @@ export function PeopleView({ people, today, onSave, onDelete }: Props) {
         <PeopleSheet
           person={editing ?? blankPerson()}
           isNew={!editing}
-          onSave={(next) => { onSave(next); setCreating(false); setEditing(null) }}
-          onDelete={editing ? () => { onDelete(editing.id); setEditing(null) } : undefined}
+          onSave={(next) => { if (onSave(next)) { setCreating(false); setEditing(null) } }}
+          onDelete={editing ? () => { if (onDelete(editing.id)) setEditing(null) } : undefined}
           onClose={() => { setCreating(false); setEditing(null) }}
         />
       )}
@@ -77,6 +77,7 @@ function PeopleSheet({ person, isNew, onSave, onDelete, onClose }: {
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(person)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -85,6 +86,7 @@ function PeopleSheet({ person, isNew, onSave, onDelete, onClose }: {
   }
 
   return (
+    <>
     <Sheet title={isNew ? 'New person' : draft.name} eyebrow="Referral network" onClose={onClose}>
       <form className="simple-form" onSubmit={submit}>
         <label>Name<input autoFocus required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -95,11 +97,22 @@ function PeopleSheet({ person, isNew, onSave, onDelete, onClose }: {
         <label>Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Person['status'] })}>
           {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select></label>
+        <div className="form-pair">
+          <label>Email<input type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label>
+          <label>LinkedIn URL<input type="url" value={draft.linkedinUrl} onChange={(event) => setDraft({ ...draft, linkedinUrl: event.target.value })} /></label>
+        </div>
+        <div className="form-pair">
+          <label>How known<select value={draft.howKnown ?? ''} onChange={(event) => setDraft({ ...draft, howKnown: event.target.value ? event.target.value as Person['howKnown'] : null })}><option value="">—</option><option value="cold">Cold</option><option value="alumni">Alumni</option><option value="linkedin">LinkedIn</option><option value="ex_colleague">Ex-colleague</option><option value="referred_by">Referred by</option></select></label>
+          <label>Last contact<input type="date" value={draft.lastContactOn ?? ''} onChange={(event) => setDraft({ ...draft, lastContactOn: event.target.value || null })} /></label>
+        </div>
+        <label>Notes<textarea rows={4} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></label>
         <div className="form-actions form-actions-split">
-          {onDelete && <button className="danger-button" type="button" onClick={onDelete}>Delete</button>}
+          {onDelete && <button className="danger-button" type="button" onClick={() => setConfirmingDelete(true)}>Delete</button>}
           <button className="primary-button" type="submit"><span>{isNew ? 'Add person' : 'Save'}</span><Icon name="check" /></button>
         </div>
       </form>
     </Sheet>
+    {confirmingDelete && onDelete && <ConfirmSheet title={`Delete ${draft.name}?`} detail="Applications will keep their history, but this person will no longer be linked as a referrer." onClose={() => setConfirmingDelete(false)} onConfirm={onDelete} />}
+    </>
   )
 }

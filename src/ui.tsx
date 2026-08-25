@@ -1,4 +1,6 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
+
+let openSheetCount = 0
 
 // Client-generated primary keys must be valid UUIDs — every remote table's
 // id column is uuid typed, so no textual prefixes on persisted entities.
@@ -23,27 +25,92 @@ export function Icon({ name }: { name: 'arrow' | 'check' | 'close' | 'plus' | 's
 }
 
 export function Sheet({ title, eyebrow, onClose, children }: { title: string; eyebrow: string; onClose: () => void; children: ReactNode }) {
+  const titleId = useId()
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const sheetRef = useRef<HTMLElement>(null)
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
-    }
+    const previous = document.activeElement as HTMLElement | null
+    openSheetCount += 1
     document.body.classList.add('sheet-open')
-    window.addEventListener('keydown', onKey)
+    closeRef.current?.focus()
     return () => {
-      document.body.classList.remove('sheet-open')
-      window.removeEventListener('keydown', onKey)
+      openSheetCount -= 1
+      if (openSheetCount === 0) document.body.classList.remove('sheet-open')
+      previous?.focus()
     }
-  }, [onClose])
+  }, [])
+
+  function keepFocusInside(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      onClose()
+      return
+    }
+    if (event.key !== 'Tab' || !sheetRef.current) return
+    const controls = [...sheetRef.current.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    )]
+    if (controls.length === 0) return
+    const first = controls[0]
+    const last = controls[controls.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   return (
     <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <section ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={keepFocusInside}>
         <header className="sheet-header">
-          <div><span className="eyebrow">{eyebrow}</span><h2 id="sheet-title">{title}</h2></div>
-          <button className="icon-button sheet-close" type="button" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+          <div><span className="eyebrow">{eyebrow}</span><h2 id={titleId}>{title}</h2></div>
+          <button ref={closeRef} className="icon-button sheet-close" type="button" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </header>
         {children}
       </section>
+    </div>
+  )
+}
+
+export function ConfirmSheet({
+  title, detail, onConfirm, onClose,
+  eyebrow = 'Confirm deletion', confirmLabel = 'Delete permanently',
+}: {
+  title: string
+  detail: string
+  onConfirm: () => void
+  onClose: () => void
+  eyebrow?: string
+  confirmLabel?: string
+}) {
+  return (
+    <Sheet title={title} eyebrow={eyebrow} onClose={onClose}>
+      <div className="confirm-body">
+        <p>{detail}</p>
+        <div className="form-actions form-actions-split">
+          <button className="secondary-button" type="button" onClick={onClose}>Keep it</button>
+          <button className="danger-button" type="button" onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
+export function DoubleRule() {
+  return <div className="double-rule" aria-hidden="true" />
+}
+
+export function ZoneHeading({ eyebrow, title, aside }: { eyebrow: string; title: string; aside?: ReactNode }) {
+  return (
+    <div className="zone-heading">
+      <div>
+        <span className="eyebrow"><GateMark />{eyebrow}</span>
+        <h2>{title}</h2>
+      </div>
+      {aside && <div className="zone-aside">{aside}</div>}
     </div>
   )
 }

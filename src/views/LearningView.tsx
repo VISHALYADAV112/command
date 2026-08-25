@@ -1,20 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { LearningItem } from '../types'
 import { addDays, dateKey } from '../domain'
-import { EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
+import { ConfirmSheet, EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
 
 interface Props {
   items: LearningItem[]
   today: Date
   createSignal?: number
-  onCapture: (item: LearningItem) => void
-  onDelete: (id: string) => void
+  onCapture: (item: LearningItem) => boolean
+  onDelete: (id: string) => boolean
 }
 
 const trackLabels = { node: 'Node', dsa: 'DSA', math: 'Math' } as const
 
 export function LearningView({ items, today, createSignal = 0, onCapture, onDelete }: Props) {
   const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState<LearningItem | null>(null)
 
   useEffect(() => {
     if (createSignal > 0) setCreating(true)
@@ -58,7 +59,7 @@ export function LearningView({ items, today, createSignal = 0, onCapture, onDele
                       className="icon-button learning-delete"
                       type="button"
                       aria-label={`Delete ${item.concept}`}
-                      onClick={() => onDelete(item.id)}
+                      onClick={() => setDeleting(item)}
                     >
                       <Icon name="close" />
                     </button>
@@ -73,31 +74,39 @@ export function LearningView({ items, today, createSignal = 0, onCapture, onDele
       {creating && (
         <ConceptSheet
           today={today}
-          onSave={(item) => { onCapture(item); setCreating(false) }}
+          onSave={(item) => { if (onCapture(item)) setCreating(false) }}
           onClose={() => setCreating(false)}
         />
       )}
+      {deleting && <ConfirmSheet title="Delete this learning item?" detail={deleting.concept} onClose={() => setDeleting(null)} onConfirm={() => { if (onDelete(deleting.id)) setDeleting(null) }} />}
     </ViewShell>
   )
 }
 
 function ConceptSheet({ today, onSave, onClose }: { today: Date; onSave: (item: LearningItem) => void; onClose: () => void }) {
   const [concept, setConcept] = useState('')
+  const [stack, setStack] = useState<LearningItem['stack']>('brain')
   const [track, setTrack] = useState<LearningItem['track']>('dsa')
   const [itemType, setItemType] = useState<LearningItem['itemType']>('concept')
   const [content, setContent] = useState('')
+  const [difficulty, setDifficulty] = useState<LearningItem['difficulty']>(null)
+  const [sourceUrl, setSourceUrl] = useState('')
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (!concept.trim()) return
     onSave({
-      id: uid('learn'),
+      id: uid(),
       concept: concept.trim(),
+      stack,
       track,
       itemType,
       confidence: 1,
+      difficulty,
       nextReviewOn: dateKey(addDays(today, 1)),
+      lastReviewedOn: null,
       masteryHits: 0,
+      sourceUrl: sourceUrl.trim(),
       content: content.trim(),
     })
   }
@@ -107,18 +116,23 @@ function ConceptSheet({ today, onSave, onClose }: { today: Date; onSave: (item: 
       <form className="simple-form" onSubmit={submit}>
         <label>Concept<input autoFocus required value={concept} onChange={(event) => setConcept(event.target.value)} placeholder="Name it precisely" /></label>
         <div className="form-pair">
+          <label>Stack<select value={stack} onChange={(event) => setStack(event.target.value as LearningItem['stack'])}><option value="brain">Brain</option><option value="job">Job</option></select></label>
           <label>Track<select value={track} onChange={(event) => setTrack(event.target.value as LearningItem['track'])}>
             <option value="dsa">DSA</option>
             <option value="node">Node</option>
             <option value="math">Math</option>
           </select></label>
+        </div>
+        <div className="form-pair">
           <label>Type<select value={itemType} onChange={(event) => setItemType(event.target.value as LearningItem['itemType'])}>
             <option value="concept">Concept</option>
             <option value="pattern">Pattern</option>
             <option value="snippet">Snippet</option>
             <option value="formula">Formula</option>
           </select></label>
+          <label>Difficulty<select value={difficulty ?? ''} onChange={(event) => setDifficulty(event.target.value ? event.target.value as LearningItem['difficulty'] : null)}><option value="">—</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select></label>
         </div>
+        <label>Source URL<input type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} /></label>
         <label>The note<textarea rows={4} value={content} onChange={(event) => setContent(event.target.value)} placeholder="Explain it plainly — invariants, edge cases, why it works." /></label>
         <div className="form-actions"><button className="primary-button" type="submit"><span>Capture</span><Icon name="plus" /></button></div>
       </form>

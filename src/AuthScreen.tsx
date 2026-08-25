@@ -1,12 +1,17 @@
-import { getSupabase } from './lib/supabase'
 import { signInWithGoogle } from './lib/auth'
 import { isSupabaseConfigured } from './lib/config'
 
 export function AuthScreen() {
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
   function start() {
-    const client = getSupabase()
-    if (!client) return
-    void signInWithGoogle(client)
+    setBusy(true)
+    setError(null)
+    void signInWithGoogle().catch((failure: unknown) => {
+      setBusy(false)
+      setError(failure instanceof Error ? failure.message : 'Sign-in could not start.')
+    })
   }
 
   return (
@@ -20,9 +25,10 @@ export function AuthScreen() {
           email listed in Supabase authentication settings; everyone else is
           blocked at the door.
         </p>
-        <button className="primary-button auth-button" type="button" onClick={start} disabled={!isSupabaseConfigured}>
-          <span>Continue with Google</span>
+        <button className="primary-button auth-button" type="button" onClick={start} disabled={!isSupabaseConfigured || busy}>
+          <span>{busy ? 'Opening Google…' : 'Continue with Google'}</span>
         </button>
+        {error && <p className="auth-error" role="status">{error}</p>}
         {!isSupabaseConfigured && (
           <p className="auth-error">
             Supabase is not configured. Add <code>VITE_SUPABASE_URL</code> and{' '}
@@ -34,3 +40,4 @@ export function AuthScreen() {
     </div>
   )
 }
+import { useState } from 'react'

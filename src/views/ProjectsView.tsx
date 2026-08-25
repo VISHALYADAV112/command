@@ -1,14 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { Project } from '../types'
 import { dateKey } from '../domain'
-import { EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
+import { ConfirmSheet, EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
 
 interface Props {
   projects: Project[]
   today: Date
   createSignal?: number
-  onSave: (project: Project) => void
-  onDelete: (id: string) => void
+  onSave: (project: Project) => boolean
+  onDelete: (id: string) => boolean
   onDeadlineToCalendar?: (project: Project) => Promise<void>
 }
 
@@ -27,7 +27,7 @@ export function ProjectsView({ projects, today, createSignal = 0, onSave, onDele
   })
 
   function blankProject(): Project {
-    return { id: uid('project'), name: '', type: 'portfolio', status: 'active', deadlineOn: null, nextAction: '' }
+    return { id: uid(), name: '', type: 'portfolio', status: 'active', client: '', paymentStatus: 'na', amount: null, currency: 'INR', isPublic: false, deadlineOn: null, repoUrl: '', demoUrl: '', driveFolderUrl: '', nextAction: '', content: '' }
   }
 
   return (
@@ -38,7 +38,7 @@ export function ProjectsView({ projects, today, createSignal = 0, onSave, onDele
     >
       <p className="portfolio-target portfolio-inline">
         <span>Public portfolio</span>
-        <strong>{projects.filter((project) => project.status === 'done' && project.type === 'portfolio').length} / 3</strong>
+        <strong>{projects.filter((project) => project.status === 'done' && project.type === 'portfolio' && project.isPublic).length} / 3</strong>
       </p>
       {sorted.length === 0 ? (
         <EmptyState message="No projects yet. Ship one thing publicly." />
@@ -64,8 +64,8 @@ export function ProjectsView({ projects, today, createSignal = 0, onSave, onDele
           project={editing ?? blankProject()}
           today={today}
           isNew={!editing}
-          onSave={(next) => { onSave(next); setCreating(false); setEditing(null) }}
-          onDelete={editing ? () => { onDelete(editing.id); setEditing(null) } : undefined}
+          onSave={(next) => { if (onSave(next)) { setCreating(false); setEditing(null) } }}
+          onDelete={editing ? () => { if (onDelete(editing.id)) setEditing(null) } : undefined}
           onDeadlineToCalendar={onDeadlineToCalendar}
           onClose={() => { setCreating(false); setEditing(null) }}
         />
@@ -85,6 +85,7 @@ function ProjectSheet({ project, today, isNew, onSave, onDelete, onDeadlineToCal
 }) {
   const [draft, setDraft] = useState(project)
   const [calendarBusy, setCalendarBusy] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   async function addToCalendar() {
     if (!onDeadlineToCalendar || !draft.deadlineOn) return
@@ -98,11 +99,12 @@ function ProjectSheet({ project, today, isNew, onSave, onDelete, onDeadlineToCal
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (!draft.name.trim()) return
+    if (!draft.name.trim() || (draft.status !== 'done' && !draft.nextAction.trim())) return
     onSave(draft)
   }
 
   return (
+    <>
     <Sheet title={isNew ? 'New project' : draft.name} eyebrow="Work" onClose={onClose}>
       <form className="simple-form" onSubmit={submit}>
         <label>Name<input autoFocus required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -120,6 +122,14 @@ function ProjectSheet({ project, today, isNew, onSave, onDelete, onDeadlineToCal
           </select></label>
         </div>
         <div className="form-pair">
+          <label>Client<input value={draft.client} onChange={(event) => setDraft({ ...draft, client: event.target.value })} /></label>
+          <label>Payment<select value={draft.paymentStatus} onChange={(event) => setDraft({ ...draft, paymentStatus: event.target.value as Project['paymentStatus'] })}><option value="na">N/A</option><option value="unpaid">Unpaid</option><option value="invoiced">Invoiced</option><option value="paid">Paid</option></select></label>
+        </div>
+        <div className="form-pair">
+          <label>Amount<input type="number" min="0" inputMode="decimal" value={draft.amount ?? ''} onChange={(event) => setDraft({ ...draft, amount: event.target.value ? Number(event.target.value) : null })} /></label>
+          <label>Currency<input maxLength={3} value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} /></label>
+        </div>
+        <div className="form-pair">
           <label>Deadline<input type="date" min={dateKey(today)} value={draft.deadlineOn ?? ''} onChange={(event) => setDraft({ ...draft, deadlineOn: event.target.value || null })} /></label>
           {onDeadlineToCalendar && (
             <button
@@ -132,12 +142,22 @@ function ProjectSheet({ project, today, isNew, onSave, onDelete, onDeadlineToCal
             </button>
           )}
         </div>
-        <label>Next action<input value={draft.nextAction} onChange={(event) => setDraft({ ...draft, nextAction: event.target.value })} placeholder="The next physical action" /></label>
+        <label className="check-row"><input type="checkbox" checked={draft.isPublic} onChange={(event) => setDraft({ ...draft, isPublic: event.target.checked })} />Public and recruiter-visible</label>
+        <div className="form-pair">
+          <label>Repository URL<input type="url" value={draft.repoUrl} onChange={(event) => setDraft({ ...draft, repoUrl: event.target.value })} /></label>
+          <label>Demo URL<input type="url" value={draft.demoUrl} onChange={(event) => setDraft({ ...draft, demoUrl: event.target.value })} /></label>
+        </div>
+        <label>Drive folder URL<input type="url" value={draft.driveFolderUrl} onChange={(event) => setDraft({ ...draft, driveFolderUrl: event.target.value })} /></label>
+        {draft.driveFolderUrl && <a className="secondary-button drive-link" href={draft.driveFolderUrl} target="_blank" rel="noreferrer">Open folder in Drive</a>}
+        <label>Next action<input required={draft.status !== 'done'} value={draft.nextAction} onChange={(event) => setDraft({ ...draft, nextAction: event.target.value })} placeholder="The next physical action" /></label>
+        <label>Project notes<textarea rows={5} value={draft.content} onChange={(event) => setDraft({ ...draft, content: event.target.value })} placeholder="Decisions, experiments, datasets, metrics." /></label>
         <div className="form-actions form-actions-split">
-          {onDelete && <button className="danger-button" type="button" onClick={onDelete}>Delete</button>}
+          {onDelete && <button className="danger-button" type="button" onClick={() => setConfirmingDelete(true)}>Delete</button>}
           <button className="primary-button" type="submit"><span>{isNew ? 'Add project' : 'Save'}</span><Icon name="check" /></button>
         </div>
       </form>
     </Sheet>
+    {confirmingDelete && onDelete && <ConfirmSheet title={`Delete ${draft.name}?`} detail="The project and its linked Calendar deadline will be removed." onClose={() => setConfirmingDelete(false)} onConfirm={onDelete} />}
+    </>
   )
 }

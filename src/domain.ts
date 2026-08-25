@@ -1,4 +1,6 @@
-import type { DailyLog, PracticeKey, Settings } from './types'
+import type { DailyLog, LearningItem, PracticeKey, Recall, Settings } from './types'
+
+export const COMMAND_TIMEZONE = 'Asia/Kolkata'
 
 export const practices: Array<{ key: PracticeKey; label: string; shortLabel: string }> = [
   { key: 'node', label: 'Node', shortLabel: 'Node' },
@@ -13,29 +15,31 @@ export const settings: Settings = {
 }
 
 export function dateKey(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: COMMAND_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${value('year')}-${value('month')}-${value('day')}`
 }
 
 export function dateFromKey(value: string): Date {
   const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day)
+  return new Date(Date.UTC(year, month - 1, day, 6, 30))
 }
 
 export function addDays(date: Date, amount: number): Date {
   const next = new Date(date)
-  next.setDate(next.getDate() + amount)
+  next.setUTCDate(next.getUTCDate() + amount)
   return next
 }
 
 export function startOfMonday(date: Date): Date {
-  const start = new Date(date)
-  start.setHours(0, 0, 0, 0)
-  const day = start.getDay()
-  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1))
-  return start
+  const start = dateFromKey(dateKey(date))
+  const day = start.getUTCDay()
+  return addDays(start, -(day === 0 ? 6 : day - 1))
 }
 
 export function currentWeek(date: Date): Date[] {
@@ -69,12 +73,15 @@ export function weeklyTotals(logs: DailyLog[], week: Date[]): Record<PracticeKey
   )
 }
 
-export function floorStatus(log: DailyLog | undefined): Record<PracticeKey, boolean> {
+export function floorStatus(
+  log: DailyLog | undefined,
+  floors: Settings['floors'] = settings.floors,
+): Record<PracticeKey, boolean> {
   return {
-    node: minutesFor(log, 'node') >= settings.floors.node,
-    dsa: minutesFor(log, 'dsa') >= settings.floors.dsa,
-    math: minutesFor(log, 'math') >= settings.floors.math,
-    job: minutesFor(log, 'job') >= settings.floors.job,
+    node: minutesFor(log, 'node') >= floors.node,
+    dsa: minutesFor(log, 'dsa') >= floors.dsa,
+    math: minutesFor(log, 'math') >= floors.math,
+    job: minutesFor(log, 'job') >= floors.job,
   }
 }
 
@@ -93,8 +100,23 @@ export function hoursValue(minutes: number): string {
 }
 
 export function dayDistance(from: Date, toKey: string): number {
-  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const start = dateFromKey(dateKey(from)).getTime()
   return Math.round((dateFromKey(toKey).getTime() - start) / 86_400_000)
+}
+
+export function applyRecall(item: LearningItem, recall: Recall, today: Date): LearningItem {
+  const interval = recall === 'instant' ? 21 : recall === 'effort' ? 7 : recall === 'struggled' ? 3 : 1
+  const confidence = Math.max(1, Math.min(5,
+    item.confidence + (recall === 'instant' ? 1 : recall === 'struggled' ? -1 : recall === 'blank' ? -2 : 0),
+  )) as LearningItem['confidence']
+  const masteryHits = confidence === 5 && recall === 'instant' ? item.masteryHits + 1 : 0
+  return {
+    ...item,
+    confidence,
+    masteryHits,
+    lastReviewedOn: dateKey(today),
+    nextReviewOn: masteryHits >= 2 ? null : dateKey(addDays(dateFromKey(dateKey(today)), interval)),
+  }
 }
 
 export function emptyLog(day: string): DailyLog {

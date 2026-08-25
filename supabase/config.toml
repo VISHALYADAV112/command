@@ -1,0 +1,6 @@
+project_id = "command"
+
+# The function authenticates bearer tokens itself. Its OAuth callback is
+# intentionally unauthenticated and protected by one-time state plus PKCE.
+[functions.google-calendar]
+verify_jwt = false

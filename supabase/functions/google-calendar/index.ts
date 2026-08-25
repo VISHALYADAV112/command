@@ -7,9 +7,10 @@
 //
 // PKCE OAuth: the browser asks this function for a connect URL, then Google
 // redirects back to ?action=callback where the code is exchanged. Refresh
-// tokens are stored in Supabase Vault; browser code never sees them.
+// tokens are encrypted with an edge-only key; browser code never sees them.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
+import { allDayEvent, oauthState, pkceVerifier, todayWindow } from '../_shared/calendar.ts'
 
 const CID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const CSECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
@@ -20,7 +21,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const CAL_API = 'https://www.googleapis.com'
-const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
+const SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned'
 
 // Google requires an exact redirect_uri match against the registered HTTPS
 // URL. Deriving it from req.url yields the edge runtime's internal http://
@@ -38,29 +39,28 @@ const SITE_ORIGIN = (() => {
   }
 })()
 const ALLOWED_ORIGINS = new Set([SITE_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'])
-let REQUEST_ORIGIN = APP
-
-function cors(): Record<string, string> {
+function cors(requestOrigin: string): Record<string, string> {
   return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(REQUEST_ORIGIN) ? REQUEST_ORIGIN : APP,
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(requestOrigin) ? requestOrigin : SITE_ORIGIN,
     'Access-Control-Allow-Headers': 'authorization, content-type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Vary': 'Origin',
   }
 }
 
-function json(b: unknown, status = 200): Response {
-  return new Response(JSON.stringify(b), {
-    status,
-    headers: { ...cors(), 'Content-Type': 'application/json' },
-  })
-}
-
-function redirect(ok: boolean): Response {
-  return new Response(null, {
-    status: 302,
-    headers: { ...cors(), Location: `${APP}/#/settings?calendar=${ok ? 'connected' : 'error'}` },
-  })
+function responses(req: Request) {
+  const requestOrigin = req.headers.get('origin') ?? SITE_ORIGIN
+  return {
+    cors: () => cors(requestOrigin),
+    json: (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+      status,
+      headers: { ...cors(requestOrigin), 'Content-Type': 'application/json' },
+    }),
+    redirect: (ok: boolean) => new Response(null, {
+      status: 302,
+      headers: { ...cors(requestOrigin), Location: `${APP}/#/settings?calendar=${ok ? 'connected' : 'error'}` },
+    }),
+  }
 }
 
 function makeClient(): SupabaseClient {
@@ -74,13 +74,6 @@ async function sha256b64(s: string): Promise<string> {
   let raw = ''
   for (const byte of new Uint8Array(d)) raw += String.fromCharCode(byte)
   return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function verifier(): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-  let out = ''
-  for (let i = 0; i < 64; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)]
-  return out
 }
 
 async function userId(req: Request): Promise<string | null> {
@@ -157,23 +150,18 @@ async function accessToken(c: SupabaseClient, userId: string) {
       .update({ status: refreshed.status === 400 ? 'expired' : 'error' }).eq('user_id', userId)
     return null
   }
+  const { error: verifiedError } = await c.from('integration_accounts')
+    .update({ status: 'connected', last_verified_at: new Date().toISOString() }).eq('user_id', userId)
+  if (verifiedError) console.error('calendar token verification timestamp failed', verifiedError)
   return refreshed.data.access_token
 }
 
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
-function todayWindow(): { timeMin: string; timeMax: string } {
-  const now = new Date()
-  const offset = 5.5 * 60 * 60 * 1000 // Asia/Kolkata
-  const localMidnight = new Date(now.getTime() + offset)
-  localMidnight.setUTCHours(0, 0, 0, 0)
-  const start = new Date(localMidnight.getTime() - offset)
-  return { timeMin: start.toISOString(), timeMax: new Date(start.getTime() + 86_400_000).toISOString() }
-}
-
 async function handler(req: Request, action: string): Promise<Response> {
   const url = new URL(req.url)
+  const { json, redirect } = responses(req)
 
   // Google redirects here with no Authorization header.
   if (action === 'callback') {
@@ -181,9 +169,13 @@ async function handler(req: Request, action: string): Promise<Response> {
     const state = url.searchParams.get('state')
     if (!code || !state) return redirect(false)
     const c = makeClient()
-    const { data: row } = await c.from('oauth_states').select('state,code_verifier,user_id')
+    const { data: row, error: stateError } = await c.from('oauth_states').select('state,code_verifier,user_id,created_at')
       .eq('state', state).single()
-    if (!row) return redirect(false)
+    if (stateError || !row) return redirect(false)
+    if (new Date(row.created_at).getTime() < Date.now() - 1_800_000) {
+      await c.from('oauth_states').delete().eq('state', state)
+      return redirect(false)
+    }
 
     let ok = false
     try {
@@ -199,7 +191,7 @@ async function handler(req: Request, action: string): Promise<Response> {
         const enc = await encryptToken(ex.data.refresh_token)
         const { error: upsertError } = await c.from('integration_accounts').upsert({
           user_id: row.user_id, provider: 'google',
-          provider_account_id: ex.data.sub ?? '',
+          provider_account_id: row.user_id,
           scopes: [SCOPE], refresh_token_enc: enc,
           status: 'connected', last_verified_at: new Date().toISOString(),
         }, { onConflict: 'user_id,provider' })
@@ -208,7 +200,8 @@ async function handler(req: Request, action: string): Promise<Response> {
       }
     } finally {
       // Consume the state no matter which path ran — one attempt per code.
-      await c.from('oauth_states').delete().eq('state', state)
+      const { error: consumeError } = await c.from('oauth_states').delete().eq('state', state)
+      if (consumeError) console.error('calendar callback: state cleanup failed', consumeError)
       // Sweep abandoned attempts older than 30 minutes.
       await c.from('oauth_states').delete().lt('created_at', new Date(Date.now() - 1_800_000).toISOString())
     }
@@ -218,13 +211,23 @@ async function handler(req: Request, action: string): Promise<Response> {
   const uid = await userId(req)
   if (!uid) return json({ error: 'Unauthorized' }, 401)
   const c = makeClient()
+  const limit = action === 'event' || action === 'event_delete' || action === 'connect' ? 20 : 120
+  const { data: allowed, error: rateError } = await c.rpc('consume_edge_rate_limit', {
+    p_user_id: uid,
+    p_bucket: action,
+    p_limit: limit,
+    p_window_seconds: 60,
+  })
+  if (rateError) return json({ error: 'Rate limiter unavailable' }, 503)
+  if (!allowed) return json({ error: 'Too many requests. Try again shortly.' }, 429)
 
   switch (action) {
     case 'connect': {
-      const v = verifier()
+      await c.from('oauth_states').delete().lt('created_at', new Date(Date.now() - 1_800_000).toISOString())
+      const v = pkceVerifier()
       const challenge = await sha256b64(v)
-      const state = `${uid}.${Math.random().toString(36).slice(2)}`
-      const { error } = await c.from('oauth_states').insert({ state, code_verifier: v, user_id: uid }).single()
+      const state = oauthState(uid)
+      const { error } = await c.from('oauth_states').insert({ state, code_verifier: v, user_id: uid })
       if (error) return json({ error: error.message }, 500)
       const link = new URL(AUTH_URL)
       link.searchParams.set('client_id', CID)
@@ -243,11 +246,26 @@ async function handler(req: Request, action: string): Promise<Response> {
       const { data, error } = await c.from('integration_accounts')
         .select('provider,status,last_verified_at,scopes').eq('user_id', uid).maybeSingle()
       if (error) return json({ error: error.message }, 500)
-      return json({ connected: Boolean(data), account: data })
+      return json({ connected: data?.status === 'connected', account: data })
     }
 
     case 'disconnect': {
-      await c.from('integration_accounts').delete().eq('user_id', uid)
+      const { data: account } = await c.from('integration_accounts')
+        .select('refresh_token_enc').eq('user_id', uid).maybeSingle()
+      if (account?.refresh_token_enc) {
+        const token = await decryptToken(account.refresh_token_enc)
+        if (token) {
+          await fetch('https://oauth2.googleapis.com/revoke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ token }),
+          }).catch(() => null)
+        }
+      }
+      const { error: linkError } = await c.from('integration_links').delete().eq('user_id', uid)
+      if (linkError) return json({ error: linkError.message }, 500)
+      const { error } = await c.from('integration_accounts').delete().eq('user_id', uid)
+      if (error) return json({ error: error.message }, 500)
       return json({ ok: true })
     }
 
@@ -261,7 +279,13 @@ async function handler(req: Request, action: string): Promise<Response> {
         console.error('calendar events read failed', res.status, res.data)
         return json({ error: 'Calendar request failed', status: res.status, detail: res.data }, 502)
       }
-      const events = ((res.data?.items ?? []) as any[]).map((item: any) => ({
+      const events = ((res.data?.items ?? []) as Array<{
+        id: string
+        summary?: string
+        start?: { dateTime?: string; date?: string }
+        end?: { dateTime?: string; date?: string }
+        htmlLink?: string
+      }>).map((item) => ({
         id: item.id, title: item.summary ?? '',
         start: item.start?.dateTime ?? item.start?.date ?? null,
         end: item.end?.dateTime ?? item.end?.date ?? null,
@@ -272,15 +296,29 @@ async function handler(req: Request, action: string): Promise<Response> {
 
     case 'event': {
       const body = await req.json().catch(() => null)
-      if (!body) return json({ error: 'Invalid body' }, 400)
+      const validTypes = new Set(['project_deadline', 'application_deadline'])
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      const startDate = String(body?.start ?? '').slice(0, 10)
+      if (
+        !body
+        || !validTypes.has(body.entity_type)
+        || !uuid.test(String(body.entity_id ?? ''))
+        || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
+        || typeof body.summary !== 'string'
+        || body.summary.trim().length === 0
+        || body.summary.length > 200
+        || typeof body.idempotency_key !== 'string'
+        || body.idempotency_key.length === 0
+        || body.idempotency_key.length > 300
+      ) return json({ error: 'Invalid event body' }, 400)
       const token = await accessToken(c, uid)
       if (!token) return json({ error: 'Calendar not connected or expired' }, 401)
-      const { data: existing } = await c.from('integration_links')
+      const { data: existing, error: linkReadError } = await c.from('integration_links')
         .select('external_id').eq('user_id', uid).eq('provider', 'google')
         .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
         .eq('external_type', 'calendar_event').maybeSingle()
-      const date = String(body.start).slice(0, 10)
-      const event = { summary: body.summary, description: body.description, start: { date }, end: { date } }
+      if (linkReadError) return json({ error: linkReadError.message }, 500)
+      const event = allDayEvent(startDate, body.summary.trim(), String(body.description ?? '').slice(0, 2000))
       // update_only keeps Calendar opt-in: resyncs touch only entities the
       // user already pushed, never creates events for ones they did not.
       if (!existing?.external_id && body.update_only) return json({ ok: true, skipped: true })
@@ -293,12 +331,18 @@ async function handler(req: Request, action: string): Promise<Response> {
         console.error('calendar event write failed', res.status, res.data)
         return json({ error: 'Event create failed', status: res.status, detail: res.data }, 502)
       }
-      await c.from('integration_links').upsert({
+      const { error: linkWriteError } = await c.from('integration_links').upsert({
         user_id: uid, provider: 'google', entity_type: body.entity_type, entity_id: body.entity_id,
         external_type: 'calendar_event', external_id: res.data.id, external_url: res.data.htmlLink ?? null,
         idempotency_key: body.idempotency_key, fingerprint: body.idempotency_key,
         last_synced_at: new Date().toISOString(),
       }, { onConflict: 'user_id,provider,entity_type,entity_id,external_type' })
+      if (linkWriteError) {
+        if (!existing?.external_id) {
+          await cal(token, `/calendar/v3/calendars/primary/events/${encodeURIComponent(res.data.id)}`, { method: 'DELETE' })
+        }
+        return json({ error: 'Event link could not be saved' }, 500)
+      }
       return json({ ok: true, event: { id: res.data.id, url: res.data.htmlLink ?? null } })
     }
 
@@ -307,7 +351,9 @@ async function handler(req: Request, action: string): Promise<Response> {
     // — the link row always goes so state cannot linger.
     case 'event_delete': {
       const body = await req.json().catch(() => null)
-      if (!body || typeof body.entity_type !== 'string' || typeof body.entity_id !== 'string') {
+      const validTypes = new Set(['project_deadline', 'application_deadline'])
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      if (!body || !validTypes.has(body.entity_type) || !uuid.test(String(body.entity_id ?? ''))) {
         return json({ error: 'Invalid body' }, 400)
       }
       const { data: link } = await c.from('integration_links')
@@ -326,10 +372,11 @@ async function handler(req: Request, action: string): Promise<Response> {
           }
         }
       }
-      await c.from('integration_links')
+      const { error: unlinkError } = await c.from('integration_links')
         .delete().eq('user_id', uid).eq('provider', 'google')
         .eq('external_type', 'calendar_event')
         .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
+      if (unlinkError) return json({ error: unlinkError.message }, 500)
       return json({ ok: true })
     }
 
@@ -339,14 +386,14 @@ async function handler(req: Request, action: string): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
-  REQUEST_ORIGIN = req.headers.get('origin') ?? APP
-  if (req.method === 'OPTIONS') return new Response(null, { headers: cors() })
+  const response = responses(req)
+  if (req.method === 'OPTIONS') return new Response(null, { headers: response.cors() })
   try {
     const url = new URL(req.url)
     const action = url.searchParams.get('action') ?? 'status'
     return await handler(req, action)
   } catch (error) {
     console.error('calendar function crashed', error)
-    return json({ error: 'Internal error', detail: String(error) }, 500)
+    return response.json({ error: 'Internal error' }, 500)
   }
 })

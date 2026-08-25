@@ -1114,9 +1114,10 @@ fieldset > legend,
 
 .note-field input,
 .simple-form input,
-.simple-form select {
+.simple-form select,
+.simple-form textarea {
   width: 100%;
-  height: 48px;
+  min-height: 48px;
   margin-top: 9px;
   padding: 0 13px;
   border: 1px solid var(--line-strong);
@@ -1130,7 +1131,8 @@ fieldset > legend,
 
 .note-field input:focus,
 .simple-form input:focus,
-.simple-form select:focus {
+.simple-form select:focus,
+.simple-form textarea:focus {
   border-color: var(--warm-soft);
 }
 
@@ -1769,6 +1771,14 @@ fieldset > legend,
   font-size: 14px;
 }
 
+.loading-error {
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+.loading-error p { margin: 0; }
+
 @media (max-width: 520px) {
   .settings-row {
     flex-direction: column;
@@ -1858,6 +1868,15 @@ fieldset > legend,
 }
 .closing-clickable { cursor: pointer; }
 .closing-clickable:hover strong { color: var(--text); }
+.closing-clickable {
+  width: 100%;
+  padding-inline: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
 
 .view-zone { padding-top: 26px; }
 .view-hint {
@@ -1871,14 +1890,68 @@ fieldset > legend,
 }
 
 .simple-form textarea {
+  width: 100%;
+  margin-top: 9px;
+  padding: 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  color: var(--text);
+  background: var(--ground);
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  text-transform: none;
   resize: vertical;
   min-height: 72px;
+}
+
+.simple-form .check-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.simple-form .check-row input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--warm);
+}
+
+.confirm-body {
+  padding: 28px;
+}
+.confirm-body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--warm-soft);
+  outline-offset: 3px;
 }
 
 .calendar-push {
   align-self: end;
   white-space: nowrap;
   margin-bottom: 2px;
+}
+
+.drive-link {
+  width: fit-content;
+  text-decoration: none;
 }
 
 /* Idea view */
@@ -1941,4 +2014,36 @@ fieldset > legend,
   padding: 10px 14px;
   font-size: 13px;
   z-index: 60;
+}
+
+.sync-banner {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  z-index: 50;
+  max-width: min(360px, calc(100vw - 28px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  background: var(--surface-raised);
+  font-size: 11px;
+}
+.sync-banner button {
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+.sync-error,
+.sync-offline { border-color: rgba(168, 69, 47, 0.65); }
+.sync-saved { border-color: rgba(91, 132, 104, 0.55); }
+
+@media (max-width: 760px) {
+  .confirm-body { padding: 22px 18px max(28px, env(safe-area-inset-bottom)); }
+  .sync-banner { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); }
 }

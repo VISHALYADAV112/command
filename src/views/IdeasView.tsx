@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { Idea, IdeaStatus } from '../types'
-import { EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
+import { ConfirmSheet, EmptyState, Icon, Sheet, ViewShell, uid } from '../ui'
 
 const statusLabels: Record<IdeaStatus, string> = {
   captured: 'Captured',
@@ -19,12 +19,13 @@ const nextStatus: Record<IdeaStatus, IdeaStatus> = {
 interface Props {
   ideas: Idea[]
   createSignal?: number
-  onSave: (idea: Idea) => void
-  onDelete: (id: string) => void
+  onSave: (idea: Idea) => boolean
+  onDelete: (id: string) => boolean
 }
 
 export function IdeasView({ ideas, createSignal = 0, onSave, onDelete }: Props) {
   const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState<Idea | null>(null)
 
   useEffect(() => {
     if (createSignal > 0) setCreating(true)
@@ -55,7 +56,7 @@ export function IdeasView({ ideas, createSignal = 0, onSave, onDelete }: Props) 
                 <button type="button" className="secondary-button" onClick={() => onSave({ ...idea, status: nextStatus[idea.status] })}>
                   {idea.status === 'validating' ? 'Drop' : `→ ${statusLabels[nextStatus[idea.status]]}`}
                 </button>
-                <button type="button" className="danger-button danger-quiet" onClick={() => onDelete(idea.id)} aria-label={`Delete ${idea.idea}`}>Delete</button>
+                <button type="button" className="danger-button danger-quiet" onClick={() => setDeleting(idea)} aria-label={`Delete ${idea.idea}`}>Delete</button>
               </div>
             </article>
           ))}
@@ -75,28 +76,37 @@ export function IdeasView({ ideas, createSignal = 0, onSave, onDelete }: Props) 
 
       {creating && (
         <IdeaSheet
-          onSave={(idea) => { onSave(idea); setCreating(false) }}
+          onSave={(idea) => { if (onSave(idea)) setCreating(false) }}
           onClose={() => setCreating(false)}
         />
       )}
+      {deleting && <ConfirmSheet title="Delete this idea?" detail={deleting.idea} onClose={() => setDeleting(null)} onConfirm={() => { if (onDelete(deleting.id)) setDeleting(null) }} />}
     </ViewShell>
   )
 }
 
 function IdeaSheet({ onSave, onClose }: { onSave: (idea: Idea) => void; onClose: () => void }) {
   const [text, setText] = useState('')
+  const [problem, setProblem] = useState('')
+  const [targetMarket, setTargetMarket] = useState('')
+  const [monetization, setMonetization] = useState('')
   const [nextAction, setNextAction] = useState('')
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (!text.trim()) return
-    onSave({ id: uid('idea'), idea: text.trim(), status: 'captured', nextAction: nextAction.trim() })
+    onSave({ id: uid(), idea: text.trim(), problem: problem.trim(), targetMarket: targetMarket.trim(), monetization: monetization.trim(), status: 'captured', nextAction: nextAction.trim() })
   }
 
   return (
     <Sheet title="Capture an idea" eyebrow="One line is enough" onClose={onClose}>
       <form className="simple-form" onSubmit={submit}>
         <label>Idea<textarea autoFocus required rows={3} value={text} onChange={(event) => setText(event.target.value)} placeholder="What's the itch?" /></label>
+        <label>Problem<textarea rows={3} value={problem} onChange={(event) => setProblem(event.target.value)} placeholder="Who has it, and how much does it hurt?" /></label>
+        <div className="form-pair">
+          <label>Target market<input value={targetMarket} onChange={(event) => setTargetMarket(event.target.value)} /></label>
+          <label>Monetization<input value={monetization} onChange={(event) => setMonetization(event.target.value)} /></label>
+        </div>
         <label>First action<input value={nextAction} onChange={(event) => setNextAction(event.target.value)} placeholder="Smallest next step (optional)" /></label>
         <div className="form-actions"><button className="primary-button" type="submit"><span>Capture</span><Icon name="plus" /></button></div>
       </form>

@@ -1,48 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { createDemoData } from './data'
 import type { CommandData, DailyLog, Idea, JobApplication, LearningItem, Person, Project, Settings } from './types'
 import { getSupabase } from './lib/supabase'
 import { isSupabaseConfigured } from './lib/config'
 import { onAuthStateChange, signOut as doSignOut, getSession } from './lib/auth'
-import {
-  deleteRow, loadRemoteData, loadRemoteSettings, saveIdeaRow, savePersonRow, saveProjectRow,
-  saveRemoteSettings, upsertApplicationRow, upsertLearning, upsertLog,
-} from './lib/api'
+import { loadRemoteData, loadRemoteSettings } from './lib/api'
 import { settings as defaultSettings } from './domain'
 import {
-  applicationDeadlineEvent, createCalendarEvent, deleteCalendarEvent,
-  projectDeadlineEvent, type DeadlineEventPayload,
-} from './lib/calendar'
+  clearDemoCache, readDemoData, readLiveCache, readStoredSettings,
+  writeDemoData, writeLiveCache,
+} from './lib/localCache'
+import { useRemoteSync } from './useRemoteSync'
+import { createCommandMutations } from './commandMutations'
 
-const DATA_KEY = 'command.prototype.v1'
-const SETTINGS_KEY = 'command.prototype.settings.v1'
-
-function readDemoData(): CommandData {
-  try {
-    const stored = localStorage.getItem(DATA_KEY)
-    return stored ? (JSON.parse(stored) as CommandData) : createDemoData()
-  } catch {
-    return createDemoData()
-  }
-}
-
-function writeDemoData(data: CommandData): void {
-  try {
-    localStorage.setItem(DATA_KEY, JSON.stringify(data))
-  } catch {
-    /* prototype cache only */
-  }
-}
-
-function readStoredSettings(): Settings | null {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    return stored ? (JSON.parse(stored) as Settings) : null
-  } catch {
-    return null
-  }
-}
+export type SyncState = 'idle' | 'saving' | 'saved' | 'error' | 'offline' | 'stale'
 
 export type CommandMode = 'loading' | 'configuring' | 'demo' | 'live'
 
@@ -52,19 +23,23 @@ export interface UseCommandDataResult {
   mode: CommandMode
   session: Session | null
   ready: boolean
-  saveLog: (log: DailyLog) => void
-  saveApplication: (app: JobApplication) => void
-  deleteApplication: (id: string) => void
-  savePerson: (person: Person) => void
-  deletePerson: (id: string) => void
-  saveProject: (project: Project) => void
-  deleteProject: (id: string) => void
-  saveIdea: (idea: Idea) => void
-  deleteIdea: (id: string) => void
-  completeReview: (item: LearningItem) => void
-  captureConcept: (item: LearningItem) => void
-  deleteLearning: (id: string) => void
-  saveSettings: (next: Settings) => void
+  syncState: SyncState
+  syncMessage: string
+  online: boolean
+  retrySync: () => void
+  saveLog: (log: DailyLog) => boolean
+  saveApplication: (app: JobApplication) => boolean
+  deleteApplication: (id: string) => boolean
+  savePerson: (person: Person) => boolean
+  deletePerson: (id: string) => boolean
+  saveProject: (project: Project) => boolean
+  deleteProject: (id: string) => boolean
+  saveIdea: (idea: Idea) => boolean
+  deleteIdea: (id: string) => boolean
+  completeReview: (item: LearningItem) => boolean
+  captureConcept: (item: LearningItem) => boolean
+  deleteLearning: (id: string) => boolean
+  saveSettings: (next: Settings) => boolean
   signOut: () => void
 }
 
@@ -73,11 +48,15 @@ export function useCommandData(): UseCommandDataResult {
   const [settings, setSettings] = useState<Settings>(defaultSettings)
   const [mode, setMode] = useState<CommandMode>('loading')
   const [session, setSession] = useState<Session | null>(null)
+  const dataRef = useRef<CommandData | null>(null)
+  const sync = useRemoteSync({ mode, dataRef, reload: boot })
 
   function boot(): void {
     const client = getSupabase()
     if (!client || !isSupabaseConfigured) {
-      setDataState(readDemoData())
+      const demo = readDemoData()
+      setDataState(demo)
+      dataRef.current = demo
       setSettings(readStoredSettings() ?? defaultSettings)
       setMode('demo')
       return
@@ -92,19 +71,45 @@ export function useCommandData(): UseCommandDataResult {
       Promise.all([loadRemoteData(client), loadRemoteSettings(client)])
         .then(([remoteData, remoteSettings]) => {
           setDataState(remoteData)
+          dataRef.current = remoteData
+          writeLiveCache(remoteData)
           setSettings(remoteSettings)
           setMode('live')
+          sync.mark('idle')
         })
-        .catch(() => setMode('configuring'))
+        .catch((error: unknown) => {
+          const cached = readLiveCache()
+          if (cached) {
+            setDataState(cached)
+            dataRef.current = cached
+            setMode('live')
+            sync.mark('stale', 'Showing cached data. Reconnect to refresh.')
+          } else {
+            sync.fail(error, 'Could not load Command data.')
+            setMode('loading')
+          }
+        })
+    }).catch((error: unknown) => {
+      const cached = readLiveCache()
+      if (cached) {
+        setDataState(cached)
+        dataRef.current = cached
+        setMode('live')
+        sync.mark('stale', 'Session check failed. Showing cached data.')
+      } else {
+        sync.fail(error, 'Could not check your session.')
+        setMode('loading')
+      }
     })
   }
 
   useEffect(() => {
     boot()
-    return onAuthStateChange((next) => {
+    const stopAuth = onAuthStateChange((next) => {
       if (next) setSession(next)
       else boot()
     })
+    return stopAuth
     // run once on mount
   }, [])
 
@@ -112,139 +117,22 @@ export function useCommandData(): UseCommandDataResult {
     if (mode === 'demo' && data) writeDemoData(data)
   }, [data, mode])
 
-  function update(fn: (current: CommandData) => CommandData): CommandData | null {
-    const next = data ? fn(data) : null
-    if (next) setDataState(next)
-    return next
-  }
-
-  function remote(action: (client: NonNullable<ReturnType<typeof getSupabase>>, userId: string) => Promise<unknown>): void {
-    if (mode === 'live' && session?.user?.id) {
-      const client = getSupabase()
-      const userId = session.user.id
-      if (client) void action(client, userId).catch((error) => console.error('sync failed', error))
-    }
-  }
-
-  function replace<T extends { id: string }>(list: T[], item: T): T[] {
-    return list.some((existing) => existing.id === item.id)
-      ? list.map((existing) => existing.id === item.id ? item : existing)
-      : [item, ...list]
-  }
-
-  // A deadline pushed to Calendar must not outlive the thing it points at.
-  function unlinkDeadline(entityType: 'project_deadline' | 'application_deadline', entityId: string): void {
-    if (mode === 'live' && session) {
-      void deleteCalendarEvent(session, { entity_type: entityType, entity_id: entityId })
-        .catch((error) => console.error('calendar unlink failed', error))
-    }
-  }
-
-  // And must follow the date when it moves — without adopting entities the
-  // user never pushed (the function skips those via update_only).
-  function resyncDeadline(payload: DeadlineEventPayload): void {
-    if (mode === 'live' && session) {
-      void createCalendarEvent(session, { ...payload, update_only: true })
-        .catch((error) => console.error('calendar resync failed', error))
-    }
-  }
-
-  function saveLog(log: DailyLog): void {
-    update((current) => ({ ...current, logs: [...current.logs.filter((item) => item.day !== log.day), log] }))
-    remote((client, userId) => upsertLog(client, log, userId))
-  }
-
-  function saveApplication(app: JobApplication): void {
-    update((current) => {
-      const previous = current.applications.find((item) => item.id === app.id)
-      if (previous?.windowClosesOn && !app.windowClosesOn) unlinkDeadline('application_deadline', app.id)
-      else if (previous?.windowClosesOn && app.windowClosesOn && previous.windowClosesOn !== app.windowClosesOn) resyncDeadline(applicationDeadlineEvent(app))
-      return { ...current, applications: replace(current.applications, app) }
-    })
-    remote((client, userId) => upsertApplicationRow(client, app, userId))
-  }
-
-  function deleteApplication(id: string): void {
-    update((current) => ({ ...current, applications: current.applications.filter((item) => item.id !== id) }))
-    unlinkDeadline('application_deadline', id)
-    remote((client) => deleteRow(client, 'job_applications', id))
-  }
-
-  function savePerson(person: Person): void {
-    update((current) => ({ ...current, people: replace(current.people, person) }))
-    remote((client, userId) => savePersonRow(client, person, userId))
-  }
-
-  function deletePerson(id: string): void {
-    update((current) => ({ ...current, people: current.people.filter((item) => item.id !== id) }))
-    remote((client) => deleteRow(client, 'people', id))
-  }
-
-  function saveProject(project: Project): void {
-    update((current) => {
-      const previous = current.projects.find((item) => item.id === project.id)
-      if (previous?.deadlineOn && !project.deadlineOn) unlinkDeadline('project_deadline', project.id)
-      else if (previous?.deadlineOn && project.deadlineOn && previous.deadlineOn !== project.deadlineOn) resyncDeadline(projectDeadlineEvent(project))
-      return { ...current, projects: replace(current.projects, project) }
-    })
-    remote((client, userId) => saveProjectRow(client, project, userId))
-  }
-
-  function deleteProject(id: string): void {
-    update((current) => ({ ...current, projects: current.projects.filter((item) => item.id !== id) }))
-    unlinkDeadline('project_deadline', id)
-    remote((client) => deleteRow(client, 'projects', id))
-  }
-
-  function saveIdea(idea: Idea): void {
-    update((current) => ({ ...current, ideas: replace(current.ideas, idea) }))
-    remote((client, userId) => saveIdeaRow(client, idea, userId))
-  }
-
-  function deleteIdea(id: string): void {
-    update((current) => ({ ...current, ideas: current.ideas.filter((item) => item.id !== id) }))
-    remote((client) => deleteRow(client, 'ideas', id))
-  }
-
-  function completeReview(item: LearningItem): void {
-    update((current) => ({
-      ...current,
-      learning: current.learning.map((existing) => existing.id === item.id ? item : existing),
-    }))
-    remote((client) => upsertLearning(client, item))
-  }
-
-  function captureConcept(item: LearningItem): void {
-    update((current) => ({ ...current, learning: replace(current.learning, item) }))
-    remote((client) => upsertLearning(client, item))
-  }
-
-  function deleteLearning(id: string): void {
-    update((current) => ({ ...current, learning: current.learning.filter((item) => item.id !== id) }))
-    remote((client) => deleteRow(client, 'learning_items', id))
-  }
-
-  function saveSettings(next: Settings): void {
-    setSettings(next)
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
-    } catch {
-      /* prototype */
-    }
-    if (mode === 'live' && session) void saveRemoteSettings(getSupabase()!, next)
-  }
+  const mutations = createCommandMutations({
+    mode, session, dataRef, setData: setDataState, setSettings, sync,
+  })
 
   function signOutFromCommand(): void {
     if (mode === 'demo') {
-      try {
-        localStorage.removeItem(DATA_KEY)
-        localStorage.removeItem(SETTINGS_KEY)
-      } catch {
-        /* prototype */
-      }
+      clearDemoCache()
     } else {
       const client = getSupabase()
-      if (client) void doSignOut(client)
+      if (client) {
+        void doSignOut(client).then(() => {
+          setSession(null)
+          boot()
+        }).catch((error: unknown) => sync.fail(error, 'Sign-out failed. Try again.'))
+        return
+      }
     }
     boot()
   }
@@ -255,19 +143,11 @@ export function useCommandData(): UseCommandDataResult {
     mode,
     session,
     ready: mode !== 'loading' && data !== null,
-    saveLog,
-    saveApplication,
-    deleteApplication,
-    savePerson,
-    deletePerson,
-    saveProject,
-    deleteProject,
-    saveIdea,
-    deleteIdea,
-    completeReview,
-    captureConcept,
-    deleteLearning,
-    saveSettings,
+    syncState: sync.state,
+    syncMessage: sync.message,
+    online: sync.online,
+    retrySync: sync.retry,
+    ...mutations,
     signOut: signOutFromCommand,
   }
 }
