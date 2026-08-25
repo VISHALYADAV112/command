@@ -175,6 +175,6 @@ function explainCalendarError(error: unknown): string {
 }
 
 function oauthAuthorizationId(): string | null {
-  if (typeof window === 'undefined' || window.location.hash !== '#/oauth/consent') return null
+  if (typeof window === 'undefined') return null
   return new URLSearchParams(window.location.search).get('authorization_id')
 }
