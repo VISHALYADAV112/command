@@ -18,7 +18,7 @@ export function OAuthConsentScreen({ authorizationId }: { authorizationId: strin
     if (!client) return setError('Supabase is not configured.')
     void client.auth.oauth.getAuthorizationDetails(authorizationId).then(({ data, error: failure }) => {
       if (failure || !data) return setError(failure?.message ?? 'Authorization request was not found.')
-      if ('redirect_url' in data) return window.location.assign(data.redirect_url)
+      if ('redirect_url' in data) return finish(data.redirect_url)
       setDetails(data as Details)
     })
   }, [authorizationId])
@@ -36,7 +36,12 @@ export function OAuthConsentScreen({ authorizationId }: { authorizationId: strin
       setError(result.error?.message ?? 'Authorization could not be completed.')
       return
     }
-    window.location.assign(result.data.redirect_url)
+    finish(result.data.redirect_url)
+  }
+
+  function finish(redirectUrl: string) {
+    sessionStorage.removeItem('command:oauth-authorization-id')
+    window.location.assign(redirectUrl)
   }
 
   return <div className="auth-screen"><div className="auth-card oauth-consent-card">

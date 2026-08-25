@@ -5,6 +5,8 @@ import { App } from './App'
 describe('daily instrument', () => {
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
+    window.history.replaceState({}, '', '/')
     window.location.hash = ''
   })
 

@@ -8,10 +8,12 @@ export async function signInWithGoogle(): Promise<void> {
   // GitHub Pages project sites live under a subpath (/command/), but OAuth
   // origins carry no path — without an explicit redirectTo, Supabase returns
   // the browser to the bare origin and Pages 404s.
-  const { origin, pathname, search, hash } = window.location
+  const authorizationId = new URLSearchParams(window.location.search).get('authorization_id')
+  if (authorizationId) sessionStorage.setItem('command:oauth-authorization-id', authorizationId)
+  const { origin, pathname } = window.location
   const result = await client.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${origin}${pathname}${search}${hash}` },
+    options: { redirectTo: `${origin}${pathname}` },
   })
   if (result.error) throw new Error(result.error.message)
 }

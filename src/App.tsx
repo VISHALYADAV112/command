@@ -176,5 +176,7 @@ function explainCalendarError(error: unknown): string {
 
 function oauthAuthorizationId(): string | null {
   if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search).get('authorization_id')
+  const current = new URLSearchParams(window.location.search).get('authorization_id')
+  if (current) sessionStorage.setItem('command:oauth-authorization-id', current)
+  return current ?? sessionStorage.getItem('command:oauth-authorization-id')
 }
