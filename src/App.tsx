@@ -37,6 +37,10 @@ export function App() {
   const authorizationId = oauthAuthorizationId()
 
   useEffect(() => {
+    document.documentElement.dataset.theme = command.settings.theme
+  }, [command.settings.theme])
+
+  useEffect(() => {
     function onUpdateReady() { setUpdateReady(true) }
     window.addEventListener('command:update-ready', onUpdateReady)
     return () => window.removeEventListener('command:update-ready', onUpdateReady)
@@ -129,7 +133,16 @@ export function App() {
   return (
     <>
       <div className="app-shell" id="top">
-        <AppHeader today={today} live={live} onOpenSettings={() => setSettingsOpen(true)} />
+        <AppHeader
+          today={today}
+          live={live}
+          theme={command.settings.theme}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleTheme={() => command.saveSettings({
+            ...command.settings,
+            theme: command.settings.theme === 'night' ? 'day' : 'night',
+          })}
+        />
         <ViewNav route={route} navigate={navigate} />
         {route === '' && <DashboardView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onAddApplication={() => setApplicationOpen(true)} onEditApplication={setEditingApplication} onReview={setReviewItem} quickActions={quickActions} calendar={<CalendarStrip session={command.session} />} />}
         {route === 'jobs' && <main><JobsView applications={data.applications} people={data.people} today={today} onSave={report(command.saveApplication, 'Application saved')} onDelete={report(command.deleteApplication, 'Application removed')} onDeadlineToCalendar={live ? pushApplicationDeadline : undefined} /></main>}

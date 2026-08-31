@@ -1,12 +1,12 @@
-import type { CommandData, DailyLog, Idea, JobApplication, LearningItem, Person, Project, PracticeKey, Settings } from '../types'
-import type { DbDailyLog, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './db.rows'
+import type { ActivityEvent, AgentProposal, CommandData, Commitment, DailyLog, Entity, EntityFieldDefinition, EntityType, Idea, JobApplication, LearningItem, Person, Project, PracticeKey, Settings } from '../types'
+import type { DbActivityEvent, DbAgentProposal, DbCommitment, DbDailyLog, DbEntity, DbEntityType, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './db.rows'
 
 export function mapLog(row: DbDailyLog): DailyLog {
   return {
     day: row.day,
     meditation: row.meditation,
     gym: row.gym,
-    diet: row.diet,
+    diet: row.diet as DailyLog['diet'],
     nodeMinutes: row.node_minutes,
     dsaMinutes: row.dsa_minutes,
     mathMinutes: row.math_minutes,
@@ -33,11 +33,11 @@ export function mapLearning(row: DbLearningItem): LearningItem {
   return {
     id: row.id,
     concept: row.concept,
-    stack: row.stack,
-    track: row.track,
-    itemType: row.item_type,
+    stack: row.stack as LearningItem['stack'],
+    track: row.track as LearningItem['track'],
+    itemType: row.item_type as LearningItem['itemType'],
     confidence: row.confidence as 1 | 2 | 3 | 4 | 5,
-    difficulty: row.difficulty,
+    difficulty: row.difficulty as LearningItem['difficulty'],
     nextReviewOn: row.next_review_on,
     lastReviewedOn: row.last_reviewed_on,
     masteryHits: row.mastery_hits,
@@ -70,8 +70,8 @@ export function mapPerson(row: DbPerson): Person {
     company: row.company ?? '',
     email: row.email ?? '',
     linkedinUrl: row.linkedin_url ?? '',
-    howKnown: row.how_known,
-    status: row.status,
+    howKnown: row.how_known as Person['howKnown'],
+    status: row.status as Person['status'],
     lastContactOn: row.last_contacted_on,
     nextFollowUpOn: row.next_follow_up_on,
     notes: row.notes ?? '',
@@ -98,9 +98,9 @@ export function mapApplication(row: DbJobApplication): JobApplication {
     id: row.id,
     company: row.company,
     role: row.role,
-    lane: row.lane,
-    channel: row.channel,
-    status: row.status,
+    lane: row.lane as JobApplication['lane'],
+    channel: row.channel as JobApplication['channel'],
+    status: row.status as JobApplication['status'],
     windowClosesOn: row.window_closes_on,
     appliedOn: row.applied_on,
     followUpOn: row.follow_up_on,
@@ -144,7 +144,7 @@ export function mapIdea(row: DbIdea): Idea {
     problem: row.problem ?? '',
     targetMarket: row.target_market ?? '',
     monetization: row.monetization ?? '',
-    status: row.status,
+    status: row.status as Idea['status'],
     nextAction: row.next_action ?? '',
   }
 }
@@ -165,10 +165,10 @@ export function mapProject(row: DbProject): Project {
   return {
     id: row.id,
     name: row.name,
-    type: row.project_type,
-    status: row.status,
+    type: row.project_type as Project['type'],
+    status: row.status as Project['status'],
     client: row.client ?? '',
-    paymentStatus: row.payment_status,
+    paymentStatus: row.payment_status as Project['paymentStatus'],
     amount: row.amount,
     currency: row.currency,
     isPublic: row.is_public,
@@ -201,6 +201,149 @@ export function projectToDb(project: Project): DbProject {
   }
 }
 
+export function mapEntityType(row: DbEntityType): EntityType {
+  const fields = row.field_schema as unknown as Array<Record<string, unknown>>
+  return {
+    id: row.id,
+    typeKey: row.type_key,
+    singularName: row.singular_name,
+    pluralName: row.plural_name,
+    iconKey: row.icon_key as EntityType['iconKey'],
+    schemaVersion: row.schema_version,
+    fields: fields.map((field): EntityFieldDefinition => ({
+      key: String(field.key),
+      label: String(field.label),
+      kind: field.kind as EntityFieldDefinition['kind'],
+      required: field.required === true,
+      listVisible: field.list_visible === true,
+      filterable: field.filterable === true,
+      deprecated: field.deprecated === true,
+      options: Array.isArray(field.options) ? field.options.map(String) : [],
+    })),
+    defaultSortField: row.default_sort_field,
+    defaultSortDirection: row.default_sort_direction as EntityType['defaultSortDirection'],
+    groupByField: row.group_by_field,
+    allowedCommitmentKinds: row.allowed_commitment_kinds as EntityType['allowedCommitmentKinds'],
+    pluginKey: row.plugin_key as EntityType['pluginKey'],
+    isActive: row.is_active,
+  }
+}
+
+export function entityTypeToDb(type: EntityType): DbEntityType {
+  return {
+    id: type.id,
+    type_key: type.typeKey,
+    singular_name: type.singularName,
+    plural_name: type.pluralName,
+    icon_key: type.iconKey,
+    schema_version: type.schemaVersion,
+    field_schema: type.fields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      kind: field.kind,
+      required: field.required,
+      list_visible: field.listVisible,
+      filterable: field.filterable,
+      deprecated: field.deprecated,
+      ...(field.kind === 'single_select' ? { options: field.options } : {}),
+    })),
+    default_sort_field: type.defaultSortField,
+    default_sort_direction: type.defaultSortDirection,
+    group_by_field: type.groupByField,
+    allowed_commitment_kinds: type.allowedCommitmentKinds,
+    plugin_key: type.pluginKey,
+    is_active: type.isActive,
+  }
+}
+
+export function mapEntity(row: DbEntity): Entity {
+  return {
+    id: row.id,
+    entityTypeId: row.entity_type_id,
+    title: row.title,
+    fields: row.fields as Entity['fields'],
+    schemaVersion: row.schema_version,
+    archivedAt: row.archived_at,
+  }
+}
+
+export function entityToDb(entity: Entity): DbEntity {
+  return {
+    id: entity.id,
+    entity_type_id: entity.entityTypeId,
+    title: entity.title,
+    fields: entity.fields,
+    schema_version: entity.schemaVersion,
+    archived_at: entity.archivedAt,
+  }
+}
+
+export function mapCommitment(row: DbCommitment): Commitment {
+  return {
+    id: row.id,
+    entityId: row.entity_id,
+    kind: row.kind as Commitment['kind'],
+    action: row.action,
+    dueOn: row.due_on,
+    state: row.state as Commitment['state'],
+    outcome: row.outcome,
+    completedAt: row.completed_at,
+    originSource: row.origin_source as Commitment['originSource'],
+  }
+}
+
+export function commitmentToDb(commitment: Commitment): DbCommitment {
+  return {
+    id: commitment.id,
+    entity_id: commitment.entityId,
+    kind: commitment.kind,
+    action: commitment.action,
+    due_on: commitment.dueOn,
+    state: commitment.state,
+    outcome: commitment.outcome,
+    completed_at: commitment.completedAt,
+    origin_source: commitment.originSource,
+  }
+}
+
+export function mapActivityEvent(row: DbActivityEvent): ActivityEvent {
+  return {
+    id: row.id,
+    entityId: row.entity_id,
+    commitmentId: row.commitment_id,
+    eventType: row.event_type,
+    payload: row.payload as ActivityEvent['payload'],
+    source: row.source as ActivityEvent['source'],
+    clientId: row.client_id,
+    idempotencyKey: row.idempotency_key,
+    occurredAt: row.occurred_at,
+    createdAt: row.created_at,
+  }
+}
+
+export function mapAgentProposal(row: DbAgentProposal): AgentProposal {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    operation: row.operation as AgentProposal['operation'],
+    entityTypeId: row.entity_type_id,
+    targetEntityId: row.target_entity_id,
+    targetCommitmentId: row.target_commitment_id,
+    targetUpdatedAt: row.target_updated_at,
+    proposedEntity: row.proposed_entity as AgentProposal['proposedEntity'],
+    proposedCommitment: row.proposed_commitment as AgentProposal['proposedCommitment'],
+    state: row.state as AgentProposal['state'],
+    decisionNote: row.decision_note,
+    resultEntityId: row.result_entity_id,
+    resultCommitmentId: row.result_commitment_id,
+    resultEventId: row.result_event_id,
+    idempotencyKey: row.idempotency_key,
+    expiresAt: row.expires_at,
+    decidedAt: row.decided_at,
+    createdAt: row.created_at,
+  }
+}
+
 export function mapSettings(row: DbUserSettings): Settings {
   const floors: Record<PracticeKey, number> = {
     node: row.node_floor_minutes,
@@ -214,11 +357,20 @@ export function mapSettings(row: DbUserSettings): Settings {
     math: row.math_weekly_minutes,
     job: row.job_hunt_weekly_minutes,
   }
-  return { floors, budgets }
+  return {
+    theme: row.theme === 'light' ? 'day' : 'night',
+    floors,
+    budgets,
+    weeklyTargets: {
+      applications: row.weekly_application_target,
+      peopleContacted: row.weekly_people_contact_target,
+    },
+  }
 }
 
-export function settingsToDb(settings: Settings): Omit<DbUserSettings, 'user_id' | 'theme'> {
+export function settingsToDb(settings: Settings): Omit<DbUserSettings, 'user_id'> {
   return {
+    theme: settings.theme === 'day' ? 'light' : 'dark',
     node_floor_minutes: settings.floors.node,
     dsa_floor_minutes: settings.floors.dsa,
     math_floor_minutes: settings.floors.math,
@@ -227,6 +379,8 @@ export function settingsToDb(settings: Settings): Omit<DbUserSettings, 'user_id'
     dsa_weekly_minutes: settings.budgets.dsa,
     math_weekly_minutes: settings.budgets.math,
     job_hunt_weekly_minutes: settings.budgets.job,
+    weekly_application_target: settings.weeklyTargets.applications,
+    weekly_people_contact_target: settings.weeklyTargets.peopleContacted,
   }
 }
 

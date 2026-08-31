@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import {
   compactDuration, currentWeek, dateKey, dayDistance, floorStatus,
-  hoursValue, minutesFor, practices, weeklyTotals,
+  hoursValue, minutesFor, practices, weeklyJobHuntProgress, weeklyTotals,
 } from '../domain'
 import type { CommandData, DailyLog, JobApplication, LearningItem, Settings } from '../types'
 import { DoubleRule, GateMark, Icon, ZoneHeading } from '../ui'
@@ -26,7 +26,14 @@ interface Props {
 export function DashboardView(props: Props) {
   return (
     <main>
-      <TodayInstrument log={props.data.logs.find((log) => log.day === dateKey(props.today))} settings={props.settings} onOpen={props.onLog} />
+      <TodayInstrument
+        log={props.data.logs.find((log) => log.day === dateKey(props.today))}
+        settings={props.settings}
+        applications={props.data.applications}
+        people={props.data.people}
+        today={props.today}
+        onOpen={props.onLog}
+      />
       {props.quickActions}
       {props.calendar}
       <DoubleRule />
@@ -39,9 +46,17 @@ export function DashboardView(props: Props) {
   )
 }
 
-function TodayInstrument({ log, settings, onOpen }: { log?: DailyLog; settings: Settings; onOpen: () => void }) {
+function TodayInstrument({ log, settings, applications, people, today, onOpen }: {
+  log?: DailyLog
+  settings: Settings
+  applications: JobApplication[]
+  people: CommandData['people']
+  today: Date
+  onOpen: () => void
+}) {
   const status = floorStatus(log, settings.floors)
   const completed = Object.values(status).filter(Boolean).length
+  const weeklyProgress = weeklyJobHuntProgress(applications, people, today)
   return (
     <section className="today-zone" aria-labelledby="today-title">
       <p className="today-kicker" id="today-title">Today</p>
@@ -59,6 +74,10 @@ function TodayInstrument({ log, settings, onOpen }: { log?: DailyLog; settings: 
           ))}
         </div>
         <p>Floors first, then follow interest.</p>
+      </div>
+      <div className="weekly-targets" role="group" aria-label="Weekly job-hunt progress">
+        <div className="weekly-target"><span>Applications</span><strong>{weeklyProgress.applications} / {settings.weeklyTargets.applications}</strong></div>
+        <div className="weekly-target"><span>New contacts</span><strong>{weeklyProgress.peopleContacted} / {settings.weeklyTargets.peopleContacted}</strong></div>
       </div>
       <div className="today-action-row">
         <button className="primary-button" type="button" onClick={onOpen}>

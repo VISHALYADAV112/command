@@ -38,6 +38,7 @@ export function ViewNav({ route, navigate }: { route: AppRoute; navigate: (route
           key={item.path}
           type="button"
           className={route === item.path ? 'is-active' : ''}
+          aria-current={route === item.path ? 'page' : undefined}
           onClick={() => navigate(item.path)}
         >
           {item.label}

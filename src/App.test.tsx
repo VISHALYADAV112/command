@@ -44,6 +44,8 @@ describe('daily instrument', () => {
     expect(quickCapture).toHaveTextContent('Application')
     expect(quickCapture).toHaveTextContent('Concept')
     expect(quickCapture).toHaveTextContent('Idea')
+    expect(screen.getByRole('group', { name: 'Weekly job-hunt progress' })).toHaveTextContent(/\d+ \/ 15/)
+    expect(screen.getByRole('group', { name: 'Weekly job-hunt progress' })).toHaveTextContent(/\d+ \/ 2/)
 
     fireEvent.click(screen.getByRole('button', { name: 'Learning' }))
     expect(screen.getByRole('heading', { name: 'Learning' })).toBeInTheDocument()
@@ -75,5 +77,30 @@ describe('daily instrument', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Keep it' }))
     expect(screen.queryByRole('dialog', { name: 'Delete Atlassian?' })).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Atlassian' })).toBeInTheDocument()
+  })
+
+  it('persists the selected day or night edition', () => {
+    const first = render(<App />)
+
+    expect(document.documentElement).toHaveAttribute('data-theme', 'night')
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to day edition' }))
+    expect(document.documentElement).toHaveAttribute('data-theme', 'day')
+
+    first.unmount()
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'Switch to night edition' })).toBeInTheDocument()
+  })
+
+  it('keeps the edition control keyboard and screen-reader addressable in Settings', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    const dialog = screen.getByRole('dialog', { name: 'Targets & data' })
+    const day = within(dialog).getByRole('button', { name: 'Day edition' })
+    expect(day).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(day)
+    expect(day).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save targets' }))
+    expect(document.documentElement).toHaveAttribute('data-theme', 'day')
   })
 })

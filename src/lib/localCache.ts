@@ -1,4 +1,5 @@
 import { createDemoData } from '../data'
+import { settings as defaultSettings } from '../domain'
 import type { CommandData, Settings } from '../types'
 
 const DATA_KEY = 'command.prototype.v1'
@@ -16,7 +17,15 @@ export function writeDemoData(data: CommandData): void {
 export function readStoredSettings(): Settings | null {
   try {
     const stored = localStorage.getItem(SETTINGS_KEY)
-    return stored ? JSON.parse(stored) as Settings : null
+    if (!stored) return null
+    const parsed = JSON.parse(stored) as Partial<Settings>
+    return {
+      ...parsed,
+      theme: parsed.theme === 'day' ? 'day' : 'night',
+      floors: parsed.floors ?? defaultSettings.floors,
+      budgets: parsed.budgets ?? defaultSettings.budgets,
+      weeklyTargets: parsed.weeklyTargets ?? { applications: 15, peopleContacted: 2 },
+    }
   } catch { return null }
 }
 

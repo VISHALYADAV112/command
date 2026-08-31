@@ -14,8 +14,13 @@ export interface DailyLog {
 }
 
 export interface Settings {
+  theme: 'day' | 'night'
   floors: Record<PracticeKey, number>
   budgets: Record<PracticeKey, number>
+  weeklyTargets: {
+    applications: number
+    peopleContacted: number
+  }
 }
 
 export type ApplicationStatus =
@@ -96,6 +101,106 @@ export interface LearningItem {
 }
 
 export type Recall = 'instant' | 'effort' | 'struggled' | 'blank'
+
+export type EntityFieldKind = 'text' | 'textarea' | 'number' | 'boolean' | 'date' | 'url' | 'single_select'
+export type CommitmentKind = 'follow-up' | 'deadline' | 'review' | 'contact' | 'drill' | 'milestone'
+export type BehaviourPluginKey = 'spaced_repetition'
+
+export interface EntityFieldDefinition {
+  key: string
+  label: string
+  kind: EntityFieldKind
+  required: boolean
+  listVisible: boolean
+  filterable: boolean
+  deprecated: boolean
+  options: string[]
+}
+
+export interface EntityType {
+  id: string
+  typeKey: string
+  singularName: string
+  pluralName: string
+  iconKey: 'application' | 'person' | 'project' | 'learning' | 'note' | 'generic'
+  schemaVersion: number
+  fields: EntityFieldDefinition[]
+  defaultSortField: string
+  defaultSortDirection: 'asc' | 'desc'
+  groupByField: string | null
+  allowedCommitmentKinds: CommitmentKind[]
+  pluginKey: BehaviourPluginKey | null
+  isActive: boolean
+}
+
+export type EntityFieldValue = string | number | boolean | null
+
+export interface Entity {
+  id: string
+  entityTypeId: string
+  title: string
+  fields: Record<string, EntityFieldValue>
+  schemaVersion: number
+  archivedAt: string | null
+}
+
+export type CommitmentState = 'open' | 'completed' | 'cancelled'
+export type MutationSource = 'ui' | 'mcp' | 'calendar' | 'migration'
+
+export interface Commitment {
+  id: string
+  entityId: string
+  kind: CommitmentKind
+  action: string
+  dueOn: string
+  state: CommitmentState
+  outcome: string | null
+  completedAt: string | null
+  originSource: MutationSource
+}
+
+export interface ActivityEvent {
+  id: string
+  entityId: string | null
+  commitmentId: string | null
+  eventType: string
+  payload: Record<string, unknown>
+  source: MutationSource
+  clientId: string | null
+  idempotencyKey: string | null
+  occurredAt: string
+  createdAt: string
+}
+
+export type AgentProposalOperation =
+  | 'capture'
+  | 'update_entity'
+  | 'archive_entity'
+  | 'schedule'
+  | 'complete'
+  | 'cancel'
+export type AgentProposalState = 'pending' | 'approved' | 'rejected' | 'expired'
+
+export interface AgentProposal {
+  id: string
+  clientId: string
+  operation: AgentProposalOperation
+  entityTypeId: string
+  targetEntityId: string | null
+  targetCommitmentId: string | null
+  targetUpdatedAt: string | null
+  proposedEntity: Record<string, unknown> | null
+  proposedCommitment: Record<string, unknown> | null
+  state: AgentProposalState
+  decisionNote: string | null
+  resultEntityId: string | null
+  resultCommitmentId: string | null
+  resultEventId: string | null
+  idempotencyKey: string
+  expiresAt: string
+  decidedAt: string | null
+  createdAt: string
+}
 
 export type IdeaStatus = 'captured' | 'exploring' | 'validating' | 'dropped'
 

@@ -79,6 +79,24 @@ export function SettingsSheet({
     <>
     <Sheet title="Targets & data" eyebrow="Settings" onClose={onClose}>
         <div className="settings-group">
+          <h3>Edition</h3>
+          <p className="settings-hint">Choose the paper treatment that stays with this browser and account.</p>
+          <div className="edition-switch" role="group" aria-label="Colour edition">
+            {(['night', 'day'] as const).map((edition) => (
+              <button
+                className={draft.theme === edition ? 'is-selected' : ''}
+                type="button"
+                aria-pressed={draft.theme === edition}
+                key={edition}
+                onClick={() => setDraft((current) => ({ ...current, theme: edition }))}
+              >
+                {edition === 'night' ? 'Night edition' : 'Day edition'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-group">
           <h3>Daily floors and weekly budgets</h3>
           <p className="settings-hint">Floors are the minimums. Budgets measure the week.</p>
           <div className="settings-grid">

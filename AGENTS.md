@@ -5,9 +5,12 @@ Guidance for humans and AI agents working in this repository.
 ## What this is
 
 **Command** — a mobile-first personal operating dashboard. React 19 + TypeScript +
-Vite PWA on GitHub Pages, backed by Supabase (Google auth, Postgres + RLS,
-one edge function). Spec docs: `command-os-spec.md`, `command-system-design.md`,
-`command-design-brief.md`. The spec wins over this file; this file wins over habit.
+Vite PWA on Vercel, backed by Supabase (Google auth, Postgres + RLS, Google
+Calendar and MCP edge functions). `command-v3-implementation-plan.md` is the
+source of truth for the v3 migration and wins over older specs and prototypes.
+Outside that migration, the current spec docs win over this file; this file wins
+over habit. Deployment details live in `docs/deployment.md` and decisions in
+`docs/adr/`.
 
 ## Verify before you finish
 
@@ -49,14 +52,16 @@ CI runs all three on every push and PR. Do not push red.
 ## Project conventions
 
 - IDs are client-generated UUIDs (`uid()` → valid uuid, no textual prefixes —
-  every remote `id` column is `uuid` typed); writes use upsert so create and
-  edit share one path, and inserts must include `user_id` explicitly.
+  every remote `id` column is `uuid` typed); UI creates and edits use upsert so
+  they share one path. MCP idempotent capture uses insert-or-ignore and must
+  never overwrite a later UI edit. Inserts include `user_id` explicitly.
 - Dates are `YYYY-MM-DD` strings via `dateKey`; weeks start Monday.
 - Failures surface as bounded quiet messages (toast / muted text), never alert().
 - Secrets: only publishable keys in browser env (`VITE_*`). Service keys live in
   edge-function secrets. Never commit `.env*`.
 - Migrations are append-only SQL files in `supabase/migrations/` — edit an
   applied migration never; add the next number.
-- The edge function validates the user JWT itself (deployed with
-  `--no-verify-jwt`; the OAuth callback arrives unauthenticated by design and is
-  protected by one-time state + PKCE).
+- Both edge functions deploy with `--no-verify-jwt` and perform request-level
+  authentication themselves. The Calendar OAuth callback arrives
+  unauthenticated by design and is protected by one-time state + PKCE; the MCP
+  function verifies its OAuth bearer token before serving requests.

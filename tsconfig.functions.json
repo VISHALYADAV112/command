@@ -11,5 +11,9 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["supabase/functions/command-mcp/**/*.ts", "supabase/functions/deno.d.ts"]
+  "include": [
+    "supabase/functions/_shared/**/*.ts",
+    "supabase/functions/command-mcp/**/*.ts",
+    "supabase/functions/deno.d.ts"
+  ]
 }

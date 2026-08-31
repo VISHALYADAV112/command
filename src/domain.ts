@@ -1,6 +1,9 @@
-import type { DailyLog, LearningItem, PracticeKey, Recall, Settings } from './types'
+import type { DailyLog, JobApplication, LearningItem, Person, PracticeKey, Recall, Settings } from './types'
+import {
+  COMMAND_TIMEZONE, DEFAULT_FLOORS, indiaDateKey, meetsFloor,
+} from '../supabase/functions/_shared/command-domain'
 
-export const COMMAND_TIMEZONE = 'Asia/Kolkata'
+export { COMMAND_TIMEZONE }
 
 export const practices: Array<{ key: PracticeKey; label: string; shortLabel: string }> = [
   { key: 'node', label: 'Node', shortLabel: 'Node' },
@@ -10,19 +13,14 @@ export const practices: Array<{ key: PracticeKey; label: string; shortLabel: str
 ]
 
 export const settings: Settings = {
-  floors: { node: 30, dsa: 60, math: 30, job: 60 },
+  theme: 'night',
+  floors: { ...DEFAULT_FLOORS },
   budgets: { node: 420, dsa: 840, math: 420, job: 420 },
+  weeklyTargets: { applications: 15, peopleContacted: 2 },
 }
 
 export function dateKey(date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: COMMAND_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
-  return `${value('year')}-${value('month')}-${value('day')}`
+  return indiaDateKey(date)
 }
 
 export function dateFromKey(value: string): Date {
@@ -73,15 +71,30 @@ export function weeklyTotals(logs: DailyLog[], week: Date[]): Record<PracticeKey
   )
 }
 
+export function weeklyJobHuntProgress(
+  applications: Array<Pick<JobApplication, 'appliedOn'>>,
+  people: Array<Pick<Person, 'lastContactOn'>>,
+  today: Date,
+): { applications: number; peopleContacted: number } {
+  const week = currentWeek(today)
+  const start = dateKey(week[0])
+  const end = dateKey(week[6])
+  const happenedThisWeek = (value: string | null): boolean => value !== null && value >= start && value <= end
+  return {
+    applications: applications.filter((application) => happenedThisWeek(application.appliedOn)).length,
+    peopleContacted: people.filter((person) => happenedThisWeek(person.lastContactOn)).length,
+  }
+}
+
 export function floorStatus(
   log: DailyLog | undefined,
   floors: Settings['floors'] = settings.floors,
 ): Record<PracticeKey, boolean> {
   return {
-    node: minutesFor(log, 'node') >= floors.node,
-    dsa: minutesFor(log, 'dsa') >= floors.dsa,
-    math: minutesFor(log, 'math') >= floors.math,
-    job: minutesFor(log, 'job') >= floors.job,
+    node: meetsFloor(minutesFor(log, 'node'), floors.node),
+    dsa: meetsFloor(minutesFor(log, 'dsa'), floors.dsa),
+    math: meetsFloor(minutesFor(log, 'math'), floors.math),
+    job: meetsFloor(minutesFor(log, 'job'), floors.job),
   }
 }
 

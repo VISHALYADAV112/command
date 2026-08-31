@@ -41,6 +41,22 @@ export function useRemoteSync({ mode, dataRef, reload }: Options) {
     }
   }, [mode, state])
 
+  useEffect(() => {
+    function refreshWhenVisible() {
+      if (
+        mode === 'live'
+        && document.visibilityState === 'visible'
+        && navigator.onLine
+        && pending.current === 0
+        && failed.current.length === 0
+      ) {
+        reloadRef.current()
+      }
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible)
+  }, [mode])
+
   function mark(next: SyncState, nextMessage = '') {
     setState(next)
     setMessage(nextMessage)

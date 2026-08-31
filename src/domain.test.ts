@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyRecall, currentWeek, dateKey, floorStatus, weeklyTotals } from './domain'
+import { applyRecall, currentWeek, dateKey, floorStatus, weeklyJobHuntProgress, weeklyTotals } from './domain'
 import type { DailyLog, LearningItem } from './types'
 
 function log(day: string, values: Partial<DailyLog> = {}): DailyLog {
@@ -64,6 +64,16 @@ describe('weeklyTotals', () => {
       log('2026-08-31', { nodeMinutes: 999 }),
     ], week)
     expect(totals).toEqual({ node: 75, dsa: 60, math: 30, job: 60 })
+  })
+})
+
+describe('weeklyJobHuntProgress', () => {
+  it('counts submitted applications and contacts inside the Monday week', () => {
+    expect(weeklyJobHuntProgress(
+      [{ appliedOn: '2026-08-24' }, { appliedOn: '2026-08-30' }, { appliedOn: null }, { appliedOn: '2026-08-31' }],
+      [{ lastContactOn: '2026-08-25' }, { lastContactOn: '2026-08-23' }, { lastContactOn: null }],
+      new Date('2026-08-26T06:00:00Z'),
+    )).toEqual({ applications: 2, peopleContacted: 1 })
   })
 })
 

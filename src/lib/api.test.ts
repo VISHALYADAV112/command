@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LearningItem } from '../types'
-import { upsertLearning } from './api'
+import { loadRemoteData, REMOTE_READ_LIMIT, upsertLearning } from './api'
 import type { CommandClient } from './supabase'
 
 const item: LearningItem = {
@@ -38,5 +38,32 @@ describe('remote persistence', () => {
     } as unknown as CommandClient
 
     await expect(upsertLearning(client, item, crypto.randomUUID())).rejects.toThrow('RLS denied the write')
+  })
+})
+
+describe('remote reads', () => {
+  it('orders and bounds every current table read', async () => {
+    const calls: Array<{ table: string; method: string; args: unknown[] }> = []
+    const client = {
+      from(table: string) {
+        const builder = {
+          select(...args: unknown[]) { calls.push({ table, method: 'select', args }); return builder },
+          order(...args: unknown[]) { calls.push({ table, method: 'order', args }); return builder },
+          limit(...args: unknown[]) { calls.push({ table, method: 'limit', args }); return builder },
+          then(resolve: (value: { data: unknown[]; error: null }) => unknown, reject?: (reason: unknown) => unknown) {
+            return Promise.resolve({ data: [], error: null }).then(resolve, reject)
+          },
+        }
+        return builder
+      },
+    } as unknown as CommandClient
+
+    await loadRemoteData(client)
+
+    const tables = ['daily_logs', 'learning_items', 'people', 'job_applications', 'projects', 'ideas']
+    for (const table of tables) {
+      expect(calls.some((call) => call.table === table && call.method === 'order')).toBe(true)
+      expect(calls).toContainEqual({ table, method: 'limit', args: [REMOTE_READ_LIMIT] })
+    }
   })
 })

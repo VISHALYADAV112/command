@@ -10,6 +10,8 @@ function throwIfError(result: { error: { message: string } | null }): void {
   if (result.error) throw new Error(result.error.message)
 }
 
+export const REMOTE_READ_LIMIT = 1000
+
 export function exportData(data: CommandData, settings: Settings): string {
   return JSON.stringify({ exportedAt: new Date().toISOString(), settings, ...data }, null, 2)
 }
@@ -59,12 +61,12 @@ export function exportCsv(kind: CsvTable, data: CommandData): string {
 
 export async function loadRemoteData(client: CommandClient): Promise<CommandData> {
   const [logs, learning, people, applications, projects, ideas] = await Promise.all([
-    client.from('daily_logs').select('*'),
-    client.from('learning_items').select('*'),
-    client.from('people').select('*'),
-    client.from('job_applications').select('*'),
-    client.from('projects').select('*'),
-    client.from('ideas').select('*'),
+    client.from('daily_logs').select('*').order('day', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
+    client.from('learning_items').select('*').order('next_review_on', { nullsFirst: false }).order('id').limit(REMOTE_READ_LIMIT),
+    client.from('people').select('*').order('name').order('id').limit(REMOTE_READ_LIMIT),
+    client.from('job_applications').select('*').order('updated_at', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
+    client.from('projects').select('*').order('updated_at', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
+    client.from('ideas').select('*').order('updated_at', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
   ])
   ;[logs, learning, people, applications, projects, ideas].forEach(throwIfError)
   return {

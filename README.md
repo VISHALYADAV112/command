@@ -17,13 +17,18 @@ npm test
 npm run test:e2e
 ```
 
-Deployed to Vercel from `main`.
+The frontend deploys to Vercel from `main`; backend deployment is a separate,
+manually dispatched GitHub Actions workflow.
 
 ## Live deployment
 
 - App: https://command-beta-flax.vercel.app/
 - Backend: Supabase (Google auth restricted to the owner allow-list)
 - Environment: copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
+
+The approved Command v3 migration is tracked in
+[`command-v3-implementation-plan.md`](command-v3-implementation-plan.md). It is
+the source of truth when older specifications or prototypes conflict.
 
 ## Implemented
 
@@ -82,7 +87,22 @@ it validates the user JWT itself. `supabase/config.toml` records the required
 `verify_jwt = false` deployment mode because the OAuth callback is protected by
 one-time state and PKCE rather than an app JWT.
 
-## Verification and backend deployment
+## Architecture and deployment
+
+The browser is a static React/Vite PWA on Vercel. It uses a deliberately small
+hash router, controlled React forms, and `useCommandData`/`useRemoteSync` for
+optimistic client state. Components do not call Supabase directly: reads and
+writes pass through `src/lib/api.ts`, with row conversion in
+`src/lib/mappers.ts`. Supabase owns Google authentication, Postgres/RLS, and the
+Google Calendar and Command MCP edge functions.
+
+See [`docs/deployment.md`](docs/deployment.md) for the exact frontend/backend
+release paths and secrets boundary. The durable decisions are recorded in
+[`docs/adr/0001-vercel-frontend-hosting.md`](docs/adr/0001-vercel-frontend-hosting.md)
+and
+[`docs/adr/0002-lightweight-client-infrastructure.md`](docs/adr/0002-lightweight-client-infrastructure.md).
+
+## Verification
 
 CI runs typecheck/build, Vitest, mobile Playwright flows, and pgTAP RLS tests.
 After applying a migration locally, run `npm run db:types` to refresh the
