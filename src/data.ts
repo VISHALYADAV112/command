@@ -1,7 +1,12 @@
 import { addDays, dateKey, startOfMonday } from './domain'
-import type { CommandData } from './types'
+import type { CommandData, LegacyCommandData } from './types'
+import { upgradeLegacyData } from './v3Data'
 
 export function createDemoData(now = new Date()): CommandData {
+  return upgradeLegacyData(createLegacyDemoData(now))
+}
+
+export function createLegacyDemoData(now = new Date()): LegacyCommandData {
   const monday = startOfMonday(now)
   const today = dateKey(now)
   const logDays = [0, 1, 2, 3, 4, 5, 6]

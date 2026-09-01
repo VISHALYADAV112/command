@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { compactDuration, dateFromKey, minutesFor, practices } from '../domain'
+import { compactDuration, dailyPractices, dateFromKey, minutesFor } from '../domain'
 import type { DailyLog, PracticeKey, Settings } from '../types'
 import { Icon, Sheet } from '../ui'
 
@@ -60,7 +60,7 @@ export function DailyLogSheet({ log, settings, onSave, onClose }: Props) {
 
         <fieldset className="time-fieldset">
           <legend>Actual time</legend>
-          {practices.map(({ key, label }) => {
+          {dailyPractices.map(({ key, label }) => {
             const value = minutesFor(draft, key)
             const met = value >= settings.floors[key]
             return (

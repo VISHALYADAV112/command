@@ -3,7 +3,7 @@ import {
   compactDuration, currentWeek, dateKey, dayDistance, floorStatus,
   hoursValue, minutesFor, practices, weeklyJobHuntProgress, weeklyTotals,
 } from '../domain'
-import type { CommandData, DailyLog, JobApplication, LearningItem, Settings } from '../types'
+import type { DailyLog, JobApplication, LearningItem, LegacyCommandData, Settings } from '../types'
 import { DoubleRule, GateMark, Icon, ZoneHeading } from '../ui'
 
 const statusLabel = {
@@ -12,7 +12,7 @@ const statusLabel = {
 } as const
 
 interface Props {
-  data: CommandData
+  data: LegacyCommandData
   settings: Settings
   today: Date
   onLog: () => void
@@ -50,7 +50,7 @@ function TodayInstrument({ log, settings, applications, people, today, onOpen }:
   log?: DailyLog
   settings: Settings
   applications: JobApplication[]
-  people: CommandData['people']
+  people: LegacyCommandData['people']
   today: Date
   onOpen: () => void
 }) {
@@ -139,7 +139,7 @@ function BooleanMark({ value }: { value?: boolean }) {
 }
 
 function OuterField({ data, today, onAddApplication, onEditApplication }: {
-  data: CommandData; today: Date; onAddApplication: () => void; onEditApplication: (app: JobApplication) => void
+  data: LegacyCommandData; today: Date; onAddApplication: () => void; onEditApplication: (app: JobApplication) => void
 }) {
   const closing = data.applications.filter((app) => app.status === 'researching' && app.windowClosesOn && dayDistance(today, app.windowClosesOn) >= 0 && dayDistance(today, app.windowClosesOn) <= 30).sort(byWindow)
   const active = data.applications.filter((app) => !['rejected', 'offer'].includes(app.status)).sort(byFollowUp).slice(0, 4)

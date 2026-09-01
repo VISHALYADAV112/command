@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { practices } from './domain'
+import { dailyPractices } from './domain'
 import { McpConnections } from './McpConnections'
 import type { Settings } from './types'
 import type { CommandMode } from './useCommandData'
@@ -73,7 +73,7 @@ export function SettingsSheet({
     return Number.isInteger(value) ? String(value) : value.toFixed(1)
   }
 
-  const budgetNote = practices.map(({ key, label }) => `${label} ${hours(draft.budgets[key])}h`).join(' · ')
+  const budgetNote = dailyPractices.map(({ key, label }) => `${label} ${hours(draft.budgets[key])}h`).join(' · ')
 
   return (
     <>
@@ -97,10 +97,10 @@ export function SettingsSheet({
         </div>
 
         <div className="settings-group">
-          <h3>Daily floors and weekly budgets</h3>
-          <p className="settings-hint">Floors are the minimums. Budgets measure the week.</p>
+          <h3>Three daily floors and weekly budgets</h3>
+          <p className="settings-hint">Floors are the minimums. Job-hunt progress is tracked as weekly application and outreach outcomes.</p>
           <div className="settings-grid">
-            {practices.map(({ key, label }) => (
+            {dailyPractices.map(({ key, label }) => (
               <div className="settings-row" key={key}>
                 <span className="time-label">{label}</span>
                 <label>Floor<input type="number" min="0" step="5" value={draft.floors[key]} onChange={(e) => setField('floors', key, Number(e.target.value))} /></label>

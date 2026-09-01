@@ -12,6 +12,10 @@ export const practices: Array<{ key: PracticeKey; label: string; shortLabel: str
   { key: 'job', label: 'Job hunt', shortLabel: 'Job' },
 ]
 
+// Job-hunt minutes remain historical log data. New v3 daily practice flows
+// intentionally expose only the approved three floors.
+export const dailyPractices = practices.filter((practice) => practice.key !== 'job')
+
 export const settings: Settings = {
   theme: 'night',
   floors: { ...DEFAULT_FLOORS },

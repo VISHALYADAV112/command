@@ -67,7 +67,10 @@ export function createCommandMutations(options: Options) {
 
   function saveLog(log: DailyLog): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, logs: [...data.logs.filter((item) => item.day !== log.day), log] }))
+    update((data) => ({
+      ...data,
+      legacy: { ...data.legacy, logs: [...data.legacy.logs.filter((item) => item.day !== log.day), log] },
+    }))
     remote((client, userId) => upsertLog(client, log, userId))
     return true
   }
@@ -75,10 +78,10 @@ export function createCommandMutations(options: Options) {
   function saveApplication(app: JobApplication): boolean {
     if (!canMutate()) return false
     update((data) => {
-      const previous = data.applications.find((item) => item.id === app.id)
+      const previous = data.legacy.applications.find((item) => item.id === app.id)
       if (previous?.windowClosesOn && !app.windowClosesOn) unlinkDeadline('application_deadline', app.id)
       else if (previous?.windowClosesOn && app.windowClosesOn !== previous.windowClosesOn) resyncDeadline(applicationDeadlineEvent(app))
-      return { ...data, applications: replace(data.applications, app) }
+      return { ...data, legacy: { ...data.legacy, applications: replace(data.legacy.applications, app) } }
     })
     remote((client, userId) => upsertApplicationRow(client, app, userId))
     return true
@@ -86,7 +89,7 @@ export function createCommandMutations(options: Options) {
 
   function deleteApplication(id: string): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, applications: data.applications.filter((item) => item.id !== id) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, applications: data.legacy.applications.filter((item) => item.id !== id) } }))
     unlinkDeadline('application_deadline', id)
     remote((client) => deleteRow(client, 'job_applications', id))
     return true
@@ -94,14 +97,14 @@ export function createCommandMutations(options: Options) {
 
   function savePerson(person: Person): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, people: replace(data.people, person) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, people: replace(data.legacy.people, person) } }))
     remote((client, userId) => savePersonRow(client, person, userId))
     return true
   }
 
   function deletePerson(id: string): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, people: data.people.filter((item) => item.id !== id) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, people: data.legacy.people.filter((item) => item.id !== id) } }))
     remote((client) => deleteRow(client, 'people', id))
     return true
   }
@@ -109,10 +112,10 @@ export function createCommandMutations(options: Options) {
   function saveProject(project: Project): boolean {
     if (!canMutate()) return false
     update((data) => {
-      const previous = data.projects.find((item) => item.id === project.id)
+      const previous = data.legacy.projects.find((item) => item.id === project.id)
       if (previous?.deadlineOn && !project.deadlineOn) unlinkDeadline('project_deadline', project.id)
       else if (previous?.deadlineOn && project.deadlineOn !== previous.deadlineOn) resyncDeadline(projectDeadlineEvent(project))
-      return { ...data, projects: replace(data.projects, project) }
+      return { ...data, legacy: { ...data.legacy, projects: replace(data.legacy.projects, project) } }
     })
     remote((client, userId) => saveProjectRow(client, project, userId))
     return true
@@ -120,7 +123,7 @@ export function createCommandMutations(options: Options) {
 
   function deleteProject(id: string): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, projects: data.projects.filter((item) => item.id !== id) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, projects: data.legacy.projects.filter((item) => item.id !== id) } }))
     unlinkDeadline('project_deadline', id)
     remote((client) => deleteRow(client, 'projects', id))
     return true
@@ -128,35 +131,35 @@ export function createCommandMutations(options: Options) {
 
   function saveIdea(idea: Idea): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, ideas: replace(data.ideas, idea) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, ideas: replace(data.legacy.ideas, idea) } }))
     remote((client, userId) => saveIdeaRow(client, idea, userId))
     return true
   }
 
   function deleteIdea(id: string): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, ideas: data.ideas.filter((item) => item.id !== id) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, ideas: data.legacy.ideas.filter((item) => item.id !== id) } }))
     remote((client) => deleteRow(client, 'ideas', id))
     return true
   }
 
   function completeReview(item: LearningItem): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, learning: data.learning.map((row) => row.id === item.id ? item : row) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, learning: data.legacy.learning.map((row) => row.id === item.id ? item : row) } }))
     remote((client, userId) => upsertLearning(client, item, userId))
     return true
   }
 
   function captureConcept(item: LearningItem): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, learning: replace(data.learning, item) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, learning: replace(data.legacy.learning, item) } }))
     remote((client, userId) => upsertLearning(client, item, userId))
     return true
   }
 
   function deleteLearning(id: string): boolean {
     if (!canMutate()) return false
-    update((data) => ({ ...data, learning: data.learning.filter((item) => item.id !== id) }))
+    update((data) => ({ ...data, legacy: { ...data.legacy, learning: data.legacy.learning.filter((item) => item.id !== id) } }))
     remote((client) => deleteRow(client, 'learning_items', id))
     return true
   }

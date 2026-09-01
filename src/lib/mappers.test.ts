@@ -12,12 +12,13 @@ describe('database mappers', () => {
   const data = createDemoData(new Date('2026-08-25T06:00:00Z'))
 
   it('round-trips every persisted model field', () => {
-    expect(mapApplication(applicationToDb(data.applications[0]))).toEqual(data.applications[0])
-    expect(mapPerson(personToDb(data.people[0]))).toEqual(data.people[0])
-    expect(mapProject(projectToDb(data.projects[0]))).toEqual(data.projects[0])
-    expect(mapIdea(ideaToDb(data.ideas[0]))).toEqual(data.ideas[0])
-    expect(mapLearning(learningToDb(data.learning[0]))).toEqual(data.learning[0])
-    expect(mapLog({ id: crypto.randomUUID(), ...logToDb(data.logs[0]) })).toEqual(data.logs[0])
+    const legacy = data.legacy
+    expect(mapApplication(applicationToDb(legacy.applications[0]))).toEqual(legacy.applications[0])
+    expect(mapPerson(personToDb(legacy.people[0]))).toEqual(legacy.people[0])
+    expect(mapProject(projectToDb(legacy.projects[0]))).toEqual(legacy.projects[0])
+    expect(mapIdea(ideaToDb(legacy.ideas[0]))).toEqual(legacy.ideas[0])
+    expect(mapLearning(learningToDb(legacy.learning[0]))).toEqual(legacy.learning[0])
+    expect(mapLog({ id: crypto.randomUUID(), ...logToDb(legacy.logs[0]) })).toEqual(legacy.logs[0])
   })
 
   it('keeps target settings at the mapper boundary', () => {

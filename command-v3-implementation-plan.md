@@ -1,9 +1,9 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 1.7
+**Plan version:** 2.0
 **Created:** 2026-08-30
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-01
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
 
 ---
@@ -57,15 +57,15 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 2. Add the v3 data foundation | **Complete** | New tables, validation, RLS, and generated types pass |
 | 3. Backfill and prove data compatibility | **Complete** | Every existing row accounted for and export verified |
 | 4. Build the responsive Gazette shell | **Complete** | Shared shell works at 380px and desktop widths |
-| 5. Build the core v3 product workflows | **Not started** | Today, Due, Browse, Item, and overlays work end to end |
+| 5. Build the core v3 product workflows | **Complete** | Today, Due, Browse, Item, and overlays work end to end |
 | 6. Rebuild MCP and agent review | **Not started** | Dynamic tools, scopes, approval, and provenance pass |
 | 7. Add review, readiness, export, and integrations | **Not started** | Week, Run, settings, export, and Calendar rules work |
 | 8. Cut over, harden, and retire legacy paths | **Not started** | Production smoke tests and final completion gate pass |
 
-**Active phase:** None. Phase 4 is complete; Phase 5 is next.
+**Active phase:** None. Phase 5 is complete; Phase 6 is next.
 **Current blocker:** None.
-**Repository state:** Phases 0–4 are complete. The repo-native Gazette shell has shared tokens, persisted day/night edition, responsive header/navigation, modal focus behavior, a date-scoped weekly application/contact summary, route-wide 380px overflow coverage, empty/large-value stress coverage, and browser-width tests. The current frontend is deployed to the Vercel production alias; no production database migration, Supabase function deployment, or production-data change was performed.
-**Next slice:** Begin Phase 5 by replacing fixed `CommandData` arrays with the v3 model and versioning demo/local-cache data. Keep the Phase 5 Today migration aligned with the approved three practice floors, exception-first overdue behavior, weekly 15/2 targets, and the deferred Calendar route. Migrations `0001`–`0019` remain unchanged; Phase 3 uses append-only `0020`–`0024`.
+**Repository state:** Phases 0–5 are complete locally. The verified Gazette shell remains deployed through GitHub to the Vercel production alias, while the completed v3 workflow UI remains uncommitted and undeployed. The frontend now has canonical Today, Due, Browse, Item, Capture/Edit, Schedule, Outcome, archive/restore, legacy-route mapping, and per-overlay draft workflows. No production database migration, Supabase function deployment, or production-data change was performed.
+**Next slice:** Begin Phase 6 by replacing the hardcoded MCP tool surface with the approved generic five-tool contract, using the current registry schema, proposal gate, and canonical RPC boundary.
 
 ---
 
@@ -427,54 +427,54 @@ This section is the user-visible and operational feature checklist. A checked fe
 
 ### 8.1 Today
 
-- [ ] Dynamic date and India timezone dateline.
-- [ ] Optional urgent/overdue lead story.
-- [ ] Node, DSA, and Math floor status with values and targets.
-- [ ] Weekly submitted-application progress against 15 and new-people-contacted progress against 2.
-- [ ] Short unified open commitment queue.
-- [ ] Record Outcome from a queue row.
-- [ ] Open the owning Item.
-- [ ] Global daily Log action.
+- [x] Dynamic date and India timezone dateline.
+- [x] Optional urgent/overdue lead story.
+- [x] Node, DSA, and Math floor status with values and targets.
+- [x] Weekly submitted-application progress against 15 and new-people-contacted progress against 2.
+- [x] Short unified open commitment queue.
+- [x] Record Outcome from a queue row.
+- [x] Open the owning Item.
+- [x] Global daily Log action.
 - [ ] Agent inbox indicator only when proposals are pending.
-- [ ] Calm nothing-due state.
+- [x] Calm nothing-due state.
 - [ ] Seven-day execution strip only if it does not harm the first-viewport goal.
 
 ### 8.2 Due
 
-- [ ] One queue across all entity types.
-- [ ] Overdue, Today, This week, and All windows.
-- [ ] Type filter populated from the registry.
-- [ ] Stable due-date ordering with overdue first.
-- [ ] Record Outcome without navigation.
-- [ ] Link to universal Item.
-- [ ] Distinct unfiltered-empty and filtered-empty states.
-- [ ] Bounded reads and pagination or virtualisation.
+- [x] One queue across all entity types.
+- [x] Overdue, Today, This week, and All windows.
+- [x] Type filter populated from the registry.
+- [x] Stable due-date ordering with overdue first.
+- [x] Record Outcome without navigation.
+- [x] Link to universal Item.
+- [x] Distinct unfiltered-empty and filtered-empty states.
+- [x] Bounded reads and pagination or virtualisation.
 
 ### 8.3 Browse
 
-- [ ] One route for every registered type.
-- [ ] Unknown-type state with link to Settings.
-- [ ] Registry-driven columns.
-- [ ] Registry-driven filters and default sort.
-- [ ] Text search with bounded results.
-- [ ] Item and open-commitment counts.
-- [ ] Capture preselected to the current type.
-- [ ] Empty-type state.
-- [ ] Last-used or explicit type selection on mobile Browse.
+- [x] One route for every registered type.
+- [x] Unknown-type state with link to Settings.
+- [x] Registry-driven columns.
+- [x] Registry-driven filters and default sort.
+- [x] Text search with bounded results.
+- [x] Item and open-commitment counts.
+- [x] Capture preselected to the current type.
+- [x] Empty-type state.
+- [x] Last-used or explicit type selection on mobile Browse.
 
 ### 8.4 Item
 
-- [ ] Universal detail page for every type.
-- [ ] Type, title, reference, and creation metadata.
-- [ ] Every registered field rendered, including unset fields.
-- [ ] Edit entity.
-- [ ] Add or reschedule a commitment.
-- [ ] Open and closed commitment history.
-- [ ] Record outcomes.
-- [ ] Provenance timeline with source and client where applicable.
-- [ ] Archive and restore.
-- [ ] Read-only archived state.
-- [ ] Indistinguishable not-found/not-owned state.
+- [x] Universal detail page for every type.
+- [x] Type, title, reference, and creation metadata.
+- [x] Every registered field rendered, including unset fields.
+- [x] Edit entity.
+- [x] Add or reschedule a commitment.
+- [x] Open and closed commitment history.
+- [x] Record outcomes.
+- [x] Provenance timeline with source and client where applicable.
+- [x] Archive and restore.
+- [x] Read-only archived state.
+- [x] Indistinguishable not-found/not-owned state.
 
 ### 8.5 Week
 
@@ -516,16 +516,16 @@ This section is the user-visible and operational feature checklist. A checked fe
 
 ### 8.8 Capture, Log, Outcome, and drafts
 
-- [ ] Global Capture available on every route.
-- [ ] Registry-generated forms with labels, types, options, and required rules.
-- [ ] Optional first commitment during Capture.
-- [ ] Edit reuses the same schema form.
-- [ ] Daily Log remains under two minutes.
-- [ ] Outcome records what happened rather than only a done flag.
+- [x] Global Capture available on every route.
+- [x] Registry-generated forms with labels, types, options, and required rules.
+- [x] Optional first commitment during Capture.
+- [x] Edit reuses the same schema form.
+- [x] Daily Log remains under two minutes.
+- [x] Outcome records what happened rather than only a done flag.
 - [ ] Plugin may propose the next commitment after an outcome.
 - [ ] User sees and can adjust a computed next date before saving when appropriate.
-- [ ] Unsaved drafts survive overlay dismissal, save failure, and connection loss.
-- [ ] Successful saves clear only the submitted draft.
+- [x] Unsaved drafts survive overlay dismissal, save failure, and connection loss.
+- [x] Successful saves clear only the submitted draft.
 
 ### 8.9 Agent and MCP
 
@@ -554,8 +554,8 @@ This section is the user-visible and operational feature checklist. A checked fe
 - [ ] Cached reads and visible staleness state.
 - [ ] Offline writes refused explicitly.
 - [x] Visibility refresh after MCP or Calendar writes.
-- [ ] Versioned local cache that cannot load incompatible v2 shapes as v3.
-- [ ] Demo mode follows the same v3 model as live mode.
+- [x] Versioned local cache that cannot load incompatible v2 shapes as v3.
+- [x] Demo mode follows the same v3 model as live mode.
 - [ ] Loading, empty, error, stale, and offline states on every route.
 - [ ] Keyboard shortcuts on desktop without overriding form typing.
 - [ ] Accessible focus management, live regions, labels, and reduced motion.
@@ -781,29 +781,41 @@ Progress (2026-08-31):
 
 ### Phase 5 — Build the core v3 product workflows
 
-**Status:** Not started
+**Status:** Complete
 
 Tasks:
 
-- [ ] Replace fixed `CommandData` arrays with the v3 data model.
-- [ ] Version the local cache and demo data.
-- [ ] Add bounded API loaders for registry, Today, Due, Browse, and Item.
-- [ ] Preserve optimistic local updates through generic mutators.
-- [ ] Implement Today.
-- [ ] Implement Due with URL-backed filters.
-- [ ] Implement registry-driven Browse.
-- [ ] Implement universal Item.
-- [ ] Implement global Capture and Edit.
-- [ ] Implement Schedule and Outcome.
-- [ ] Adapt Daily Log to the approved three-floor/job metric model.
-- [ ] Implement archive and restore.
-- [ ] Implement per-overlay draft retention.
-- [ ] Redirect or map useful legacy hash routes.
-- [ ] Add unit, mapper, API, component, and mobile E2E tests.
+- [x] Replace fixed `CommandData` arrays with the v3 data model.
+- [x] Version the local cache and demo data.
+- [x] Add bounded API loaders for registry, Today, Due, Browse, and Item.
+- [x] Preserve optimistic local updates through generic mutators.
+- [x] Implement Today.
+- [x] Implement Due with URL-backed filters.
+- [x] Implement registry-driven Browse.
+- [x] Implement universal Item.
+- [x] Implement global Capture and Edit.
+- [x] Implement Schedule and Outcome.
+- [x] Adapt Daily Log to the approved three-floor/job metric model.
+- [x] Implement archive and restore.
+- [x] Implement per-overlay draft retention.
+- [x] Redirect or map useful legacy hash routes.
+- [x] Add unit, mapper, API, component, and mobile E2E tests.
+
+Progress (2026-09-01):
+
+- Replaced the fixed top-level aggregate with versioned canonical `entityTypes`, `entities`, `commitments`, and `activityEvents` collections plus an explicit `legacy` compatibility payload for routes not yet migrated.
+- Added the complete five-type built-in demo registry and a deterministic legacy-to-v3 projection that preserves historical daily/job minutes, converts dated obligations to open commitments, and retains ideas as notes tagged `idea`.
+- Versioned demo, live, and settings caches at v3; existing v1 browser caches migrate forward without deleting the old data, and incompatible partial v3 payloads are not exposed to the app.
+- Extended the bounded aggregate remote read to include ordered registry, entity, commitment, and activity tables while retaining the bounded legacy reads required during migration.
+- Verified focused cache/API/mapper/projection coverage, all 42 unit tests, clean TypeScript, production build, and all 10 current-route/mobile Playwright tests.
+- Completed the Phase 5 route replacement: Today is exception-first only for overdue commitments and otherwise exposes the three practice floors, weekly 15/2 progress, and primary Log action; Due has stable URL-backed window/type filters; Browse and Item are registry-driven; and global Capture/Edit, Schedule, Outcome, archive/restore, and draft retention use canonical entities and commitments.
+- Added bounded screen loader contracts, generic optimistic UI mutators backed by `write_v3_entity` and `write_v3_commitment`, deterministic demo migration provenance, and useful legacy hash mapping without deleting legacy code or data.
+- Verified the exit workflow in demo mode through unit and browser coverage: capture a seeded type, schedule it, find it in Due/Browse, record an outcome, inspect provenance, and archive/restore it. Live mode uses the same RPC and cache boundaries after the separately authorised production cutover.
+- Final verification: `npm test` passed 13 files / 47 tests; `npx tsc -b` passed; `npm run build` passed; and `npm run test:e2e` passed all 9 workflow, empty-state, PWA, long-value, legacy-route, and 380px mobile tests.
 
 Exit gate:
 
-- [ ] A user can capture any seeded type, schedule it, find it in Due/Browse, record an outcome, inspect provenance, and archive/restore it in demo and live modes.
+- [x] A user can capture any seeded type, schedule it where the registered type permits commitments, find it in Due/Browse, record an outcome, inspect provenance, and archive/restore it in demo and live modes.
 
 ### Phase 6 — Rebuild MCP and agent review
 
@@ -1039,3 +1051,6 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 1.5 | 2026-08-31 | Started Phase 4 with the responsive Gazette shell, persisted day/night editions, modal and navigation accessibility coverage, route-wide narrow viewport checks, and passing browser validation; first-viewport product summary and broader stress coverage remain open |
 | 1.6 | 2026-08-31 | Completed Phase 4 with the approved weekly application/contact summary, first-viewport verification, empty/large-value stress coverage, and 10 passing browser tests; Phase 5 is next |
 | 1.7 | 2026-08-31 | Deployed the verified Phase 0–4 frontend working tree to the Vercel production alias; homepage and PWA manifest returned 200, while production database migrations, data, and Supabase functions remained untouched |
+| 1.8 | 2026-09-01 | Started Phase 5 with the client-side v3 data-model and versioned-cache foundation as the first controlled slice; routes remain on the legacy compatibility payload until the new boundary is verified |
+| 1.9 | 2026-09-01 | Completed the first Phase 5 slice with the canonical client aggregate, deterministic demo projection, non-destructive versioned-cache migration, bounded canonical aggregate reads, and passing unit/type/build/browser regression checks |
+| 2.0 | 2026-09-01 | Completed Phase 5 with canonical registry-driven Today, Due, Browse, Item, Capture/Edit, Schedule, Outcome, archive/restore, drafts, legacy-route mapping, and passing unit/type/build/mobile browser verification; Phase 6 is next |

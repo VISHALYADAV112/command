@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { CommandData, DailyLog, Idea, JobApplication, LearningItem, Person, Project, Settings } from './types'
+import type { CommandData, Commitment, DailyLog, Entity, Idea, JobApplication, LearningItem, Person, Project, Settings } from './types'
 import { getSupabase } from './lib/supabase'
 import { isSupabaseConfigured } from './lib/config'
 import { onAuthStateChange, signOut as doSignOut, getSession } from './lib/auth'
@@ -12,6 +12,7 @@ import {
 } from './lib/localCache'
 import { useRemoteSync } from './useRemoteSync'
 import { createCommandMutations } from './commandMutations'
+import { createV3Mutations } from './v3Mutations'
 
 export type SyncState = 'idle' | 'saving' | 'saved' | 'error' | 'offline' | 'stale'
 
@@ -39,6 +40,10 @@ export interface UseCommandDataResult {
   completeReview: (item: LearningItem) => boolean
   captureConcept: (item: LearningItem) => boolean
   deleteLearning: (id: string) => boolean
+  saveEntity: (entity: Entity) => boolean
+  saveCommitment: (commitment: Commitment) => boolean
+  archiveEntity: (entity: Entity) => boolean
+  restoreEntity: (entity: Entity) => boolean
   saveSettings: (next: Settings) => boolean
   signOut: () => void
 }
@@ -120,6 +125,7 @@ export function useCommandData(): UseCommandDataResult {
   const mutations = createCommandMutations({
     mode, session, dataRef, setData: setDataState, setSettings, sync,
   })
+  const v3Mutations = createV3Mutations({ mode, session, dataRef, setData: setDataState, sync })
 
   function signOutFromCommand(): void {
     if (mode === 'demo') {
@@ -148,6 +154,7 @@ export function useCommandData(): UseCommandDataResult {
     online: sync.online,
     retrySync: sync.retry,
     ...mutations,
+    ...v3Mutations,
     signOut: signOutFromCommand,
   }
 }

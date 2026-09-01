@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 
-describe('daily instrument', () => {
+describe('v3 core workflows', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
@@ -10,97 +10,72 @@ describe('daily instrument', () => {
     window.location.hash = ''
   })
 
-  it('opens and saves today without creating a second interaction path', () => {
+  it('keeps the daily log to the approved three practice floors', () => {
     render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /log today/i }))
 
-    fireEvent.click(screen.getByRole('button', { name: /(log|continue) today/i }))
-    expect(screen.getByRole('dialog', { name: 'Log today' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add 15 minutes to Math' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save today' }))
-
-    expect(screen.queryByRole('dialog', { name: 'Log today' })).not.toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Log today' })
+    expect(within(dialog).queryByText('Job hunt')).not.toBeInTheDocument()
+    expect(within(dialog).getAllByRole('spinbutton')).toHaveLength(3)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save today' }))
     expect(screen.getByRole('status')).toHaveTextContent('Today saved')
   })
 
-  it('navigates to the ideas view and captures an idea', () => {
+  it('captures a registry-driven person with its first commitment and completes it from Due', () => {
     render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    let dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: '10000000-0000-4000-8000-000000000002' } })
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'Mira Patel' } })
+    fireEvent.change(within(dialog).getByLabelText(/Status/), { target: { value: 'talking' } })
+    fireEvent.click(within(dialog).getByLabelText('Schedule this record now'))
+    fireEvent.change(within(dialog).getByLabelText('Due on'), { target: { value: '2026-09-02' } })
+    fireEvent.change(within(dialog).getByLabelText('Commitment action'), { target: { value: 'Send Mira a follow-up' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Capture record' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ideas' }))
-    expect(screen.getByRole('heading', { name: 'Ideas' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /capture/i }))
-    const dialog = screen.getByRole('dialog')
-    fireEvent.change(within(dialog).getByPlaceholderText("What's the itch?"), { target: { value: 'Test idea from spec' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: /^Capture$/ }))
-
-    expect(screen.getByText('Test idea from spec')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Due' }))
+    fireEvent.change(screen.getByLabelText('Type filter'), { target: { value: 'person' } })
+    expect(screen.getByText('Send Mira a follow-up')).toBeInTheDocument()
+    fireEvent.click(within(screen.getByText('Send Mira a follow-up').closest('article')!).getByRole('button', { name: 'Outcome' }))
+    dialog = screen.getByRole('dialog', { name: 'Record outcome' })
+    fireEvent.change(within(dialog).getByLabelText('What happened?'), { target: { value: 'Sent a useful follow-up.' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save outcome' }))
+    expect(screen.queryByText('Send Mira a follow-up')).not.toBeInTheDocument()
   })
 
-  it('shows the learning library and the quick-capture row on the dashboard', () => {
+  it('browses, opens, archives, and restores canonical items', () => {
     render(<App />)
-
-    const quickCapture = screen.getByRole('group', { name: 'Quick capture' })
-    expect(quickCapture).toHaveTextContent('Application')
-    expect(quickCapture).toHaveTextContent('Concept')
-    expect(quickCapture).toHaveTextContent('Idea')
-    expect(screen.getByRole('group', { name: 'Weekly job-hunt progress' })).toHaveTextContent(/\d+ \/ 15/)
-    expect(screen.getByRole('group', { name: 'Weekly job-hunt progress' })).toHaveTextContent(/\d+ \/ 2/)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Learning' }))
-    expect(screen.getByRole('heading', { name: 'Learning' })).toBeInTheDocument()
-    expect(screen.getAllByText(/Sliding window/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Browse' }))
+    fireEvent.change(screen.getByLabelText('Browse type'), { target: { value: 'project' } })
+    fireEvent.click(screen.getByRole('button', { name: /RAG evaluation workbench/ }))
+    expect(screen.getByRole('heading', { name: 'RAG evaluation workbench' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(screen.getByText('Archived records are read-only until restored.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
+    expect(screen.queryByText('Archived records are read-only until restored.')).not.toBeInTheDocument()
   })
 
-  it('captures a concept into the learning library', () => {
+  it('retains a capture draft after dismissal and clears it after a successful save', () => {
     render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    let dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: '10000000-0000-4000-8000-000000000005' } })
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'Draft idea' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
 
-    fireEvent.click(within(screen.getByRole('group', { name: 'Quick capture' })).getByRole('button', { name: 'Concept' }))
-    const dialog = screen.getByRole('dialog', { name: '+ Concept' })
-    fireEvent.change(within(dialog).getByLabelText('Concept'), { target: { value: 'Monotonic stack invariant' } })
-    fireEvent.change(within(dialog).getByLabelText('The note'), { target: { value: 'Pop candidates that can no longer answer later queries.' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Capture' }))
-
-    expect(screen.queryByRole('dialog', { name: '+ Concept' })).not.toBeInTheDocument()
-    expect(screen.getByText('Monotonic stack invariant')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: '10000000-0000-4000-8000-000000000005' } })
+    expect(within(dialog).getByLabelText('Title')).toHaveValue('Draft idea')
+    fireEvent.change(within(dialog).getByLabelText(/Tag/), { target: { value: 'idea' } })
+    fireEvent.change(within(dialog).getByLabelText(/Status/), { target: { value: 'captured' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Capture record' }))
+    expect(localStorage.getItem('command.draft.capture.10000000-0000-4000-8000-000000000005')).toBeNull()
   })
 
-  it('shows jobs as a full pipeline and confirms destructive actions', () => {
+  it('maps useful legacy hashes to the registry route', () => {
+    window.location.hash = '#/jobs'
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Jobs' }))
     expect(screen.getByRole('heading', { name: 'Applications' })).toBeInTheDocument()
-    expect(screen.getByText('Archive')).toBeInTheDocument()
-    expect(screen.getByText('Example Systems')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Atlassian Graduate Software Engineer/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(screen.getByRole('dialog', { name: 'Delete Atlassian?' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }))
-    expect(screen.queryByRole('dialog', { name: 'Delete Atlassian?' })).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'Atlassian' })).toBeInTheDocument()
-  })
-
-  it('persists the selected day or night edition', () => {
-    const first = render(<App />)
-
-    expect(document.documentElement).toHaveAttribute('data-theme', 'night')
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to day edition' }))
-    expect(document.documentElement).toHaveAttribute('data-theme', 'day')
-
-    first.unmount()
-    render(<App />)
-    expect(screen.getByRole('button', { name: 'Switch to night edition' })).toBeInTheDocument()
-  })
-
-  it('keeps the edition control keyboard and screen-reader addressable in Settings', () => {
-    render(<App />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
-    const dialog = screen.getByRole('dialog', { name: 'Targets & data' })
-    const day = within(dialog).getByRole('button', { name: 'Day edition' })
-    expect(day).toHaveAttribute('aria-pressed', 'false')
-    fireEvent.click(day)
-    expect(day).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save targets' }))
-    expect(document.documentElement).toHaveAttribute('data-theme', 'day')
   })
 })

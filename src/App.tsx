@@ -2,44 +2,37 @@ import { useEffect, useState } from 'react'
 import { AppHeader } from './AppHeader'
 import { AuthScreen } from './AuthScreen'
 import { OAuthConsentScreen } from './OAuthConsentScreen'
-import { CalendarStrip } from './CalendarStrip'
 import { SettingsSheet } from './SettingsSheet'
-import { applyRecall, dateKey, emptyLog } from './domain'
+import { dateKey, emptyLog } from './domain'
 import { exportCsv, exportData, type CsvTable } from './lib/api'
-import { applicationDeadlineEvent, createCalendarEvent, projectDeadlineEvent } from './lib/calendar'
-import { ViewNav, useHashRoute, type AppRoute } from './routes'
-import type { DailyLog, JobApplication, LearningItem, Project, Recall } from './types'
+import { useHashRoute, ViewNav } from './routes'
+import type { Commitment, DailyLog, Entity } from './types'
 import { Icon } from './ui'
 import { useCommandData, type SyncState } from './useCommandData'
 import { useIndiaToday } from './useIndiaToday'
+import { CommitmentQueue, TodayView } from './views/TodayView'
+import { DueView } from './views/DueView'
+import { BrowseView } from './views/BrowseView'
+import { ItemView } from './views/ItemView'
+import { EntitySheet } from './views/EntitySheet'
+import { OutcomeSheet, ScheduleSheet } from './views/CommitmentSheets'
 import { DailyLogSheet } from './views/DailyLogSheet'
-import { DashboardView } from './views/DashboardView'
-import { IdeasView } from './views/IdeasView'
-import { JobsView, ApplicationSheet } from './views/JobsView'
-import { LearningView } from './views/LearningView'
-import { PeopleView } from './views/PeopleView'
-import { ProjectsView } from './views/ProjectsView'
-import { ReviewSheet } from './views/ReviewSheet'
 
 export function App() {
   const today = useIndiaToday()
-  const todayKey = dateKey(today)
   const command = useCommandData()
   const [route, navigate] = useHashRoute()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
-  const [applicationOpen, setApplicationOpen] = useState(false)
-  const [editingApplication, setEditingApplication] = useState<JobApplication | null>(null)
-  const [reviewItem, setReviewItem] = useState<LearningItem | null>(null)
-  const [createTick, setCreateTick] = useState(0)
+  const [captureType, setCaptureType] = useState<string | null>(null)
+  const [editingEntity, setEditingEntity] = useState<Entity | null>(null)
+  const [scheduling, setScheduling] = useState<{ entity: Entity; commitment: Commitment | null } | null>(null)
+  const [outcome, setOutcome] = useState<Commitment | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [updateReady, setUpdateReady] = useState(false)
   const authorizationId = oauthAuthorizationId()
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = command.settings.theme
-  }, [command.settings.theme])
-
+  useEffect(() => { document.documentElement.dataset.theme = command.settings.theme }, [command.settings.theme])
   useEffect(() => {
     function onUpdateReady() { setUpdateReady(true) }
     window.addEventListener('command:update-ready', onUpdateReady)
@@ -51,56 +44,25 @@ export function App() {
     window.setTimeout(() => setNotice(null), 2400)
   }
 
-  function goCreate(next: AppRoute) {
-    setCreateTick((tick) => tick + 1)
-    navigate(next)
+  function saveEntity(entity: Entity, firstCommitment: Commitment | null): boolean {
+    if (!command.saveEntity(entity)) return false
+    if (firstCommitment && !command.saveCommitment(firstCommitment)) return false
+    showNotice(firstCommitment ? 'Record captured and scheduled' : 'Record saved')
+    return true
   }
 
-  function report<T>(action: (value: T) => boolean, message: string): (value: T) => boolean {
-    return (value) => {
-      const accepted = action(value)
-      if (accepted && command.mode === 'demo') showNotice(message)
-      return accepted
-    }
+  function saveCommitment(commitment: Commitment): boolean {
+    if (!command.saveCommitment(commitment)) return false
+    showNotice(commitment.state === 'open' ? 'Commitment scheduled' : 'Outcome recorded')
+    return true
   }
 
-  function saveDashboardApplication(application: JobApplication) {
-    if (!command.saveApplication(application)) return
-    setApplicationOpen(false)
-    setEditingApplication(null)
+  function archive(entity: Entity) {
+    if (command.archiveEntity(entity)) showNotice('Record archived')
   }
 
-  function deleteDashboardApplication(id: string) {
-    if (!command.deleteApplication(id)) return
-    setApplicationOpen(false)
-    setEditingApplication(null)
-  }
-
-  async function pushApplicationDeadline(app: JobApplication) {
-    if (!command.session || !app.windowClosesOn) return
-    await pushDeadline(() => createCalendarEvent(command.session!, applicationDeadlineEvent(app)))
-  }
-
-  async function pushProjectDeadline(project: Project) {
-    if (!command.session || !project.deadlineOn) return
-    await pushDeadline(() => createCalendarEvent(command.session!, projectDeadlineEvent(project)))
-  }
-
-  async function pushDeadline(action: () => Promise<void>) {
-    try {
-      await action()
-      showNotice('Added to Calendar')
-    } catch (error) {
-      showNotice(`Calendar: ${explainCalendarError(error)}`)
-    }
-  }
-
-  function completeRecall(recall: Recall) {
-    if (!reviewItem) return
-    const reviewed = applyRecall(reviewItem, recall, today)
-    if (!command.completeReview(reviewed)) return
-    setReviewItem(null)
-    showNotice(reviewed.nextReviewOn ? `Next review ${reviewed.nextReviewOn}` : 'Item retired from rotation')
+  function restore(entity: Entity) {
+    if (command.restoreEntity(entity)) showNotice('Record restored')
   }
 
   function handleExport(kind: 'json' | 'csv', table?: string) {
@@ -108,60 +70,41 @@ export function App() {
     const content = kind === 'json'
       ? exportData(command.data, command.settings)
       : exportCsv(table as CsvTable, command.data)
-    download(content, kind === 'json' ? `command-export-${todayKey}.json` : `command-${table}.csv`, kind)
+    download(content, kind === 'json' ? `command-export-${dateKey(today)}.json` : `command-${table}.csv`, kind)
     showNotice('Export downloaded')
   }
 
   if (command.mode === 'configuring') return <AuthScreen />
   if (authorizationId && command.mode === 'live') return <OAuthConsentScreen authorizationId={authorizationId} />
-  if (command.syncState === 'error' && !command.data) {
-    return <div className="loading-state loading-error"><p>{command.syncMessage}</p><button className="secondary-button" type="button" onClick={command.retrySync}>Retry</button></div>
-  }
+  if (command.syncState === 'error' && !command.data) return <div className="loading-state loading-error"><p>{command.syncMessage}</p><button className="secondary-button" type="button" onClick={command.retrySync}>Retry</button></div>
   if (!command.ready || !command.data) return <div className="loading-state">Loading…</div>
 
   const data = command.data
-  const live = command.mode === 'live'
-  const todayLog = data.logs.find((log) => log.day === todayKey) ?? emptyLog(todayKey)
-  const quickActions = (
-    <div className="action-row" role="group" aria-label="Quick capture">
-      <button className="secondary-button" type="button" onClick={() => setApplicationOpen(true)}><Icon name="plus" /><span>Application</span></button>
-      <button className="secondary-button" type="button" onClick={() => goCreate('learning')}><Icon name="plus" /><span>Concept</span></button>
-      <button className="secondary-button" type="button" onClick={() => goCreate('ideas')}><Icon name="plus" /><span>Idea</span></button>
+  const todayLog = data.legacy.logs.find((log) => log.day === dateKey(today)) ?? emptyLog(dateKey(today))
+  const openItem = (id: string) => navigate({ kind: 'item', id })
+  const openCapture = (typeKey: string | null = null) => setCaptureType(typeKey ?? 'application')
+
+  return <>
+    <div className="app-shell" id="top">
+      <AppHeader today={today} live={command.mode === 'live'} theme={command.settings.theme} onOpenSettings={() => setSettingsOpen(true)} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
+      <ViewNav route={route} navigate={navigate} onCapture={() => openCapture()} onMore={() => setSettingsOpen(true)} />
+      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} />}
+      {route.kind === 'due' && <DueView data={data} today={today} window={route.window} typeKey={route.typeKey} onChange={(window, typeKey) => navigate({ kind: 'due', window, typeKey })} onOutcome={setOutcome} onOpenItem={openItem} onCapture={openCapture} />}
+      {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => setSettingsOpen(true)} />}
+      {route.kind === 'item' && <ItemView data={data} entityId={route.id} onEdit={setEditingEntity} onSchedule={(entity, commitment = null) => setScheduling({ entity, commitment })} onOutcome={setOutcome} onArchive={archive} onRestore={restore} />}
+      <footer><img src="./assets/command-mark.svg" alt="" /><span>Keep the centre clear.</span></footer>
     </div>
-  )
 
-  return (
-    <>
-      <div className="app-shell" id="top">
-        <AppHeader
-          today={today}
-          live={live}
-          theme={command.settings.theme}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onToggleTheme={() => command.saveSettings({
-            ...command.settings,
-            theme: command.settings.theme === 'night' ? 'day' : 'night',
-          })}
-        />
-        <ViewNav route={route} navigate={navigate} />
-        {route === '' && <DashboardView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onAddApplication={() => setApplicationOpen(true)} onEditApplication={setEditingApplication} onReview={setReviewItem} quickActions={quickActions} calendar={<CalendarStrip session={command.session} />} />}
-        {route === 'jobs' && <main><JobsView applications={data.applications} people={data.people} today={today} onSave={report(command.saveApplication, 'Application saved')} onDelete={report(command.deleteApplication, 'Application removed')} onDeadlineToCalendar={live ? pushApplicationDeadline : undefined} /></main>}
-        {route === 'people' && <main><PeopleView people={data.people} today={today} onSave={report(command.savePerson, 'Person saved')} onDelete={report(command.deletePerson, 'Person removed')} /></main>}
-        {route === 'projects' && <main><ProjectsView projects={data.projects} today={today} createSignal={createTick} onSave={report(command.saveProject, 'Project saved')} onDelete={report(command.deleteProject, 'Project removed')} onDeadlineToCalendar={live ? pushProjectDeadline : undefined} /></main>}
-        {route === 'ideas' && <main><IdeasView ideas={data.ideas} createSignal={createTick} onSave={report(command.saveIdea, 'Idea saved')} onDelete={report(command.deleteIdea, 'Idea removed')} /></main>}
-        {route === 'learning' && <main><LearningView items={data.learning} today={today} createSignal={createTick} onCapture={report(command.captureConcept, 'Concept captured')} onDelete={report(command.deleteLearning, 'Concept removed')} /></main>}
-        <footer><img src="./assets/command-mark.svg" alt="" /><span>Keep the centre clear.</span></footer>
-      </div>
-
-      {logOpen && <DailyLogSheet log={todayLog} settings={command.settings} onSave={report<DailyLog>(command.saveLog, 'Today saved')} onClose={() => setLogOpen(false)} />}
-      {(applicationOpen || editingApplication) && <ApplicationSheet today={today} people={data.people} existing={editingApplication} onSave={saveDashboardApplication} onDelete={editingApplication ? deleteDashboardApplication : undefined} onDeadlineToCalendar={live ? pushApplicationDeadline : undefined} onClose={() => { setApplicationOpen(false); setEditingApplication(null) }} />}
-      {reviewItem && <ReviewSheet item={reviewItem} onComplete={completeRecall} onClose={() => setReviewItem(null)} />}
-      {settingsOpen && <SettingsSheet settings={command.settings} session={command.session} mode={command.mode} onSaveSettings={report(command.saveSettings, 'Targets saved')} onSignOut={() => { setSettingsOpen(false); command.signOut() }} onClose={() => setSettingsOpen(false)} onExport={handleExport} />}
-      <SyncBanner state={command.syncState} message={command.syncMessage} onRetry={command.retrySync} />
-      {updateReady && <div className="update-banner" role="status"><span>A new version is ready.</span><button className="secondary-button" type="button" onClick={() => window.location.reload()}>Refresh</button></div>}
-      <div className={`toast ${notice ? 'is-visible' : ''}`} role="status" aria-live="polite">{notice}</div>
-    </>
-  )
+    {logOpen && <DailyLogSheet log={todayLog} settings={command.settings} onSave={(log: DailyLog) => { const saved = command.saveLog(log); if (saved) showNotice('Today saved'); return saved }} onClose={() => setLogOpen(false)} />}
+    {captureType && <EntitySheet types={data.entityTypes} initialTypeKey={captureType} onSave={saveEntity} onClose={() => setCaptureType(null)} />}
+    {editingEntity && <EntitySheet types={data.entityTypes} existing={editingEntity} onSave={saveEntity} onClose={() => setEditingEntity(null)} />}
+    {scheduling && <ScheduleSheet entity={scheduling.entity} type={data.entityTypes.find((type) => type.id === scheduling.entity.entityTypeId)!} existing={scheduling.commitment} onSave={saveCommitment} onClose={() => setScheduling(null)} />}
+    {outcome && <OutcomeSheet commitment={outcome} onSave={saveCommitment} onClose={() => setOutcome(null)} />}
+    {settingsOpen && <SettingsSheet settings={command.settings} session={command.session} mode={command.mode} onSaveSettings={(settings) => { const saved = command.saveSettings(settings); if (saved) showNotice('Targets saved'); return saved }} onSignOut={() => { setSettingsOpen(false); command.signOut() }} onClose={() => setSettingsOpen(false)} onExport={handleExport} />}
+    <SyncBanner state={command.syncState} message={command.syncMessage} onRetry={command.retrySync} />
+    {updateReady && <div className="update-banner" role="status"><span>A new version is ready.</span><button className="secondary-button" type="button" onClick={() => window.location.reload()}>Refresh</button></div>}
+    <div className={`toast ${notice ? 'is-visible' : ''}`} role="status" aria-live="polite">{notice}</div>
+  </>
 }
 
 function SyncBanner({ state, message, onRetry }: { state: SyncState; message: string; onRetry: () => void }) {
@@ -179,16 +122,7 @@ function download(content: string, filename: string, kind: 'json' | 'csv') {
   URL.revokeObjectURL(url)
 }
 
-function explainCalendarError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : ''
-  try {
-    const parsed = JSON.parse(raw) as { detail?: { error?: { message?: string }; message?: string }; error?: string }
-    return parsed.detail?.error?.message ?? parsed.detail?.message ?? parsed.error ?? raw.slice(0, 140)
-  } catch { return raw.slice(0, 140) || 'unreachable' }
-}
-
 function oauthAuthorizationId(): string | null {
-  if (typeof window === 'undefined') return null
   const current = new URLSearchParams(window.location.search).get('authorization_id')
   if (current) sessionStorage.setItem('command:oauth-authorization-id', current)
   return current ?? sessionStorage.getItem('command:oauth-authorization-id')

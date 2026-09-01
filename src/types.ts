@@ -214,11 +214,20 @@ export interface Idea {
   nextAction: string
 }
 
-export interface CommandData {
+export interface LegacyCommandData {
   logs: DailyLog[]
   applications: JobApplication[]
   people: Person[]
   projects: Project[]
   learning: LearningItem[]
   ideas: Idea[]
+}
+
+export interface CommandData {
+  version: 3
+  entityTypes: EntityType[]
+  entities: Entity[]
+  commitments: Commitment[]
+  activityEvents: ActivityEvent[]
+  legacy: LegacyCommandData
 }

@@ -1,107 +1,113 @@
 import { createDemoData } from '../data'
 import { settings as defaultSettings } from '../domain'
-import type { CommandData, Settings } from '../types'
+import type { CommandData, LegacyCommandData, Settings } from '../types'
+import { isCommandData, upgradeLegacyData } from '../v3Data'
 
-const DATA_KEY = 'command.prototype.v1'
-const SETTINGS_KEY = 'command.prototype.settings.v1'
-const LIVE_CACHE_KEY = 'command.live-cache.v1'
+const DATA_KEY = 'command.prototype.v3'
+const SETTINGS_KEY = 'command.prototype.settings.v3'
+const LIVE_CACHE_KEY = 'command.live-cache.v3'
+const LEGACY_DATA_KEY = 'command.prototype.v1'
+const LEGACY_SETTINGS_KEY = 'command.prototype.settings.v1'
+const LEGACY_LIVE_CACHE_KEY = 'command.live-cache.v1'
+
+interface CacheEnvelope<T> {
+  version: 3
+  data: T
+}
 
 export function readDemoData(): CommandData {
-  return readData(DATA_KEY) ?? createDemoData()
+  const current = readCommandData(DATA_KEY)
+  if (current) return current
+
+  const legacy = readLegacyData(LEGACY_DATA_KEY)
+  if (!legacy) return createDemoData()
+  const migrated = upgradeLegacyData(legacy)
+  writeDemoData(migrated)
+  return migrated
 }
 
 export function writeDemoData(data: CommandData): void {
-  write(DATA_KEY, data)
+  write(DATA_KEY, envelope(data))
 }
 
 export function readStoredSettings(): Settings | null {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return null
-    const parsed = JSON.parse(stored) as Partial<Settings>
-    return {
-      ...parsed,
-      theme: parsed.theme === 'day' ? 'day' : 'night',
-      floors: parsed.floors ?? defaultSettings.floors,
-      budgets: parsed.budgets ?? defaultSettings.budgets,
-      weeklyTargets: parsed.weeklyTargets ?? { applications: 15, peopleContacted: 2 },
-    }
-  } catch { return null }
+  const current = readJson(SETTINGS_KEY)
+  if (isEnvelope(current) && current.data && typeof current.data === 'object') {
+    return normalizeSettings(current.data as Partial<Settings>)
+  }
+
+  const legacy = readJson(LEGACY_SETTINGS_KEY)
+  if (!legacy || typeof legacy !== 'object') return null
+  const migrated = normalizeSettings(legacy as Partial<Settings>)
+  writeStoredSettings(migrated)
+  return migrated
 }
 
 export function writeStoredSettings(settings: Settings): void {
-  write(SETTINGS_KEY, settings)
+  write(SETTINGS_KEY, envelope(settings))
 }
 
 export function readLiveCache(): CommandData | null {
-  return readData(LIVE_CACHE_KEY)
+  const current = readCommandData(LIVE_CACHE_KEY)
+  if (current) return current
+
+  const legacy = readLegacyData(LEGACY_LIVE_CACHE_KEY)
+  if (!legacy) return null
+  const migrated = upgradeLegacyData(legacy)
+  writeLiveCache(migrated)
+  return migrated
 }
 
 export function writeLiveCache(data: CommandData): void {
-  write(LIVE_CACHE_KEY, data)
+  write(LIVE_CACHE_KEY, envelope(data))
 }
 
 export function clearDemoCache(): void {
   try {
     localStorage.removeItem(DATA_KEY)
     localStorage.removeItem(SETTINGS_KEY)
+    localStorage.removeItem(LEGACY_DATA_KEY)
+    localStorage.removeItem(LEGACY_SETTINGS_KEY)
   } catch { /* browser storage is best-effort */ }
 }
 
-function readData(key: string): CommandData | null {
+function readCommandData(key: string): CommandData | null {
+  const parsed = readJson(key)
+  if (!isEnvelope(parsed) || !isCommandData(parsed.data)) return null
+  return parsed.data
+}
+
+function readLegacyData(key: string): Partial<LegacyCommandData> | null {
+  const parsed = readJson(key)
+  if (!parsed || typeof parsed !== 'object') return null
+  return parsed as Partial<LegacyCommandData>
+}
+
+function readJson(key: string): unknown {
   try {
     const stored = localStorage.getItem(key)
-    return stored ? normalizeData(JSON.parse(stored) as Partial<CommandData>) : null
+    return stored ? JSON.parse(stored) : null
   } catch { return null }
 }
 
-// Older browser caches predate several fields. Fill only missing values so a
-// release never turns existing user data into uncontrolled form values.
-function normalizeData(raw: Partial<CommandData>): CommandData {
+function isEnvelope(value: unknown): value is CacheEnvelope<unknown> {
+  if (!value || typeof value !== 'object') return false
+  const cache = value as Partial<CacheEnvelope<unknown>>
+  return cache.version === 3 && 'data' in cache
+}
+
+function normalizeSettings(raw: Partial<Settings>): Settings {
   return {
-    logs: Array.isArray(raw.logs) ? raw.logs : [],
-    applications: (Array.isArray(raw.applications) ? raw.applications : []).map((item) => ({
-      ...item,
-      appliedOn: item.appliedOn ?? null,
-      hasReferral: item.hasReferral ?? false,
-      resumeVersion: item.resumeVersion ?? '',
-      resumeDriveUrl: item.resumeDriveUrl ?? '',
-      notes: item.notes ?? '',
-    })),
-    people: (Array.isArray(raw.people) ? raw.people : []).map((item) => ({
-      ...item,
-      email: item.email ?? '',
-      linkedinUrl: item.linkedinUrl ?? '',
-      howKnown: item.howKnown ?? null,
-      lastContactOn: item.lastContactOn ?? null,
-      notes: item.notes ?? '',
-    })),
-    projects: (Array.isArray(raw.projects) ? raw.projects : []).map((item) => ({
-      ...item,
-      client: item.client ?? '',
-      paymentStatus: item.paymentStatus ?? 'na',
-      amount: item.amount ?? null,
-      currency: item.currency ?? 'INR',
-      isPublic: item.isPublic ?? false,
-      repoUrl: item.repoUrl ?? '',
-      demoUrl: item.demoUrl ?? '',
-      driveFolderUrl: item.driveFolderUrl ?? '',
-      content: item.content ?? '',
-    })),
-    learning: (Array.isArray(raw.learning) ? raw.learning : []).map((item) => ({
-      ...item,
-      stack: item.stack ?? 'brain',
-      difficulty: item.difficulty ?? null,
-      lastReviewedOn: item.lastReviewedOn ?? null,
-      sourceUrl: item.sourceUrl ?? '',
-    })),
-    ideas: (Array.isArray(raw.ideas) ? raw.ideas : []).map((item) => ({
-      ...item,
-      problem: item.problem ?? '',
-      targetMarket: item.targetMarket ?? '',
-      monetization: item.monetization ?? '',
-    })),
+    ...raw,
+    theme: raw.theme === 'day' ? 'day' : 'night',
+    floors: raw.floors ?? defaultSettings.floors,
+    budgets: raw.budgets ?? defaultSettings.budgets,
+    weeklyTargets: raw.weeklyTargets ?? { applications: 15, peopleContacted: 2 },
   }
+}
+
+function envelope<T>(data: T): CacheEnvelope<T> {
+  return { version: 3, data }
 }
 
 function write(key: string, value: unknown): void {
