@@ -21,15 +21,16 @@ export function TodayView({ data, settings, today, onLog, onCapture, onOutcome, 
   return <main>
     <section className="today-zone v3-today">
       <p className="today-kicker">Today · Asia/Kolkata</p>
-      {overdue.length > 0 ? <div className="urgent-lead">
+      {overdue.length > 0 && <div className="urgent-lead">
         <span className="eyebrow">Overdue exception</span>
         <strong>{overdue[0].commitment.action}</strong>
         <p>{overdue[0].entity.title} · {relativeDueLabel(today, overdue[0].commitment.dueOn)}</p>
         <div className="action-row"><button className="primary-button" type="button" onClick={() => onOutcome(overdue[0].commitment)}>Record outcome <Icon name="check" /></button><button className="secondary-button" type="button" onClick={() => onOpenItem(overdue[0].entity.id)}>Open item</button></div>
-      </div> : <div className="floor-field">
+      </div>}
+      <div className={`floor-field ${overdue.length ? 'is-after-exception' : ''}`}>
         <div className="floor-grid three-floors">{floors.map((floor) => <div className="floor" key={floor.key}><span className={`gate-mark ${floor.met ? 'is-met' : ''}`} /><span>{floor.label}</span><strong>{compactDuration(floor.minutes)} / {compactDuration(floor.target)}</strong></div>)}</div>
         <p>{allFloorsMet ? 'Practice floors are clear. Use the day for deliberate work.' : 'Three practice floors set the centre of the day.'}</p>
-      </div>}
+      </div>
       <div className="weekly-targets" role="group" aria-label="Weekly outcome progress">
         <div className="weekly-target"><span>Applications submitted</span><strong>{weekly.applications} / {settings.weeklyTargets.applications}</strong></div>
         <div className="weekly-target"><span>New people contacted</span><strong>{weekly.peopleContacted} / {settings.weeklyTargets.peopleContacted}</strong></div>

@@ -1,7 +1,7 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 2.0
+**Plan version:** 2.5
 **Created:** 2026-08-30
 **Last updated:** 2026-09-01
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
@@ -31,6 +31,7 @@ Status vocabulary:
 - **Not started** — no implementation work has begun.
 - **In progress** — active work; only one phase should normally have this status.
 - **Blocked** — cannot progress without a recorded decision or external change.
+- **Paused** — partially implemented work held while an earlier phase gate is repaired.
 - **Complete** — implementation, migration, tests, and documentation for the phase all pass.
 - **Deferred** — deliberately excluded from the v3 completion gate.
 
@@ -57,15 +58,15 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 2. Add the v3 data foundation | **Complete** | New tables, validation, RLS, and generated types pass |
 | 3. Backfill and prove data compatibility | **Complete** | Every existing row accounted for and export verified |
 | 4. Build the responsive Gazette shell | **Complete** | Shared shell works at 380px and desktop widths |
-| 5. Build the core v3 product workflows | **Complete** | Today, Due, Browse, Item, and overlays work end to end |
-| 6. Rebuild MCP and agent review | **Not started** | Dynamic tools, scopes, approval, and provenance pass |
+| 5. Build the core v3 product workflows | **Complete** | Today, Due, Browse, Item, and overlays pass the corrected implementation gate |
+| 6. Rebuild MCP and agent review | **In progress** | Dynamic tools, scopes, approval, and provenance pass |
 | 7. Add review, readiness, export, and integrations | **Not started** | Week, Run, settings, export, and Calendar rules work |
 | 8. Cut over, harden, and retire legacy paths | **Not started** | Production smoke tests and final completion gate pass |
 
-**Active phase:** None. Phase 5 is complete; Phase 6 is next.
-**Current blocker:** None.
-**Repository state:** Phases 0–5 are complete locally. The verified Gazette shell remains deployed through GitHub to the Vercel production alias, while the completed v3 workflow UI remains uncommitted and undeployed. The frontend now has canonical Today, Due, Browse, Item, Capture/Edit, Schedule, Outcome, archive/restore, legacy-route mapping, and per-overlay draft workflows. No production database migration, Supabase function deployment, or production-data change was performed.
-**Next slice:** Begin Phase 6 by replacing the hardcoded MCP tool surface with the approved generic five-tool contract, using the current registry schema, proposal gate, and canonical RPC boundary.
+**Active phase:** Phase 6 — Rebuild MCP and agent review.
+**Current blocker:** None. Phase 5 live-mode smoke testing remains an explicit Phase 8 cutover task, not a blocker to local Phase 6 implementation.
+**Repository state:** Phases 0–5 are committed and pushed to GitHub `main` as `a3552ac`, followed by `e1b6676`, which fixes CI to install the Chromium browser configured for Playwright. The Phase 5 frontend reached Vercel before the separately authorised database cutover and failed after authentication because production did not contain `public.entity_types`. On 2026-09-01 the public production alias was restored to the compatible Phase 4 deployment from commit `e2d5d15`; it resolves to deployment `dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` and returns HTTP 200. GitHub `main` remains at `e1b6676`. Work continues on the local `command-v3` branch so further v3 commits cannot trigger the production deployment. The corrected Phase 5 implementation and the preserved first Phase 6 MCP slice are local and not deployed. No production database migration, Supabase function deployment, or production-data change was performed.
+**Next slice:** Resume Phase 6 by validating generic MCP write payloads against current registry/commitment rules, then enforce per-client scopes before building the Agent inbox.
 
 ---
 
@@ -423,7 +424,7 @@ Legacy tables stay untouched through at least one stable v3 release. Cleanup req
 
 ## 8. Complete v3 feature inventory
 
-This section is the user-visible and operational feature checklist. A checked feature must work in live mode, not only in the prototype.
+This section is the user-visible and operational feature checklist. A checked feature must work against its current verified phase environment, not only in a static prototype. Features that depend on the unapplied v3 production schema remain subject to the explicit Phase 8 live-mode and smoke-test gate.
 
 ### 8.1 Today
 
@@ -529,7 +530,7 @@ This section is the user-visible and operational feature checklist. A checked fe
 
 ### 8.9 Agent and MCP
 
-- [ ] `command_describe_types` returns allowed types, schemas, and commitment kinds.
+- [x] `command_describe_types` returns allowed types, schemas, and commitment kinds.
 - [ ] `command_capture` creates a validated pending proposal.
 - [ ] `command_complete` proposes or applies an outcome according to client trust policy.
 - [ ] `command_schedule` proposes or applies a schedule change according to client trust policy.
@@ -812,19 +813,23 @@ Progress (2026-09-01):
 - Added bounded screen loader contracts, generic optimistic UI mutators backed by `write_v3_entity` and `write_v3_commitment`, deterministic demo migration provenance, and useful legacy hash mapping without deleting legacy code or data.
 - Verified the exit workflow in demo mode through unit and browser coverage: capture a seeded type, schedule it, find it in Due/Browse, record an outcome, inspect provenance, and archive/restore it. Live mode uses the same RPC and cache boundaries after the separately authorised production cutover.
 - Final verification: `npm test` passed 13 files / 47 tests; `npx tsc -b` passed; `npm run build` passed; and `npm run test:e2e` passed all 9 workflow, empty-state, PWA, long-value, legacy-route, and 380px mobile tests.
+- Production verification correction (2026-09-01): the Phase 5 frontend was deployed before the v3 database migrations and failed after authentication because `public.entity_types` was absent. The public Vercel alias was restored to the compatible Phase 4 deployment from `e2d5d15`; authenticated production verification remains reserved for the controlled Phase 8 migration and smoke tests.
+- Correction pass completed on 2026-09-01: live Due and Browse use bounded 25-row server pages with cached fallback; registry sorting uses canonical entity timestamps; weekly 15/2 progress uses the same immutable outcome events as `get_v3_today`; and append-only migration `0025_v3_phase5_write_corrections.sql` makes entity-plus-first-commitment capture atomic while preserving stale-retry safety.
+- Restored cache compatibility for older timestamp-less v3 entities, desktop overdue-plus-floor hierarchy, mobile action wrapping, explicit pagination, common phone/tablet/desktop coverage, large dynamic-registry coverage, and long-value stress coverage.
+- Corrected verification: `npm test` passed 14 files / 57 tests; `npx tsc -b` passed; `npm run build` passed; `npm run test:e2e` passed 12/12; `npm run test:db` passed 8 files / 283 assertions; and local database lint reported no schema errors.
 
 Exit gate:
 
-- [x] A user can capture any seeded type, schedule it where the registered type permits commitments, find it in Due/Browse, record an outcome, inspect provenance, and archive/restore it in demo and live modes.
+- [x] A user can capture any seeded type, schedule it where the registered type permits commitments, find it in Due/Browse, record an outcome, inspect provenance, and archive/restore it against the demo and local production-contract environments. Authenticated production smoke testing remains explicitly gated by Phase 8.
 
 ### Phase 6 — Rebuild MCP and agent review
 
-**Status:** Not started
+**Status:** In progress
 
 Tasks:
 
-- [ ] Replace seven hardcoded tools with the approved five generic tools.
-- [ ] Implement registry discovery.
+- [x] Replace seven hardcoded tools with the approved five generic tools.
+- [x] Implement registry discovery.
 - [ ] Validate all write payloads server-side against current schema and commitment rules.
 - [ ] Route untrusted writes into `agent_proposals`.
 - [ ] Enforce per-client read/write/data-class scopes.
@@ -1035,6 +1040,10 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2026-08-31 | PLAN-018 | Revalidate proposals on approval and require a row lock plus target-version match | A valid pending proposal may become stale before the user decides it | One decision wins; stale or invalid approvals leave proposal, canonical rows, and events unmodified |
 | 2026-08-31 | PLAN-019 | Store weekly 15/2 targets in settings and expose only bounded derived reads in Phase 2 | Today, Due, Week, and Run inputs need a stable database contract without prematurely implementing their UI or final Phase 7 formulas | Current targets reinterpret summaries; raw logs/events stay unchanged; readiness formulas remain deferred |
 | 2026-08-31 | PLAN-020 | Finalize the five built-in schemas at version 2 and backfill through stable service-role source maps with compatibility exports | Dated legacy fields need canonical commitments without losing source values, and the cutover must be repeatable and auditable | Source tables remain intact; migration provenance is explicit; Calendar links relink only when a mapped commitment is unambiguous |
+| 2026-09-01 | PLAN-021 | Begin Phase 6 with the fixed generic MCP contract and registry discovery | The approved five-tool public surface must replace type-specific tools before trust, proposal-review UI, and scope work can safely build on it | MCP integration work uses current registry schemas and existing canonical proposal/RPC boundaries; no production function deployment occurs in this slice |
+| 2026-09-01 | PLAN-022 | Restore the production frontend alias to the Phase 4 deployment until the Phase 8 database cutover | Phase 5 requires v3 tables that were not yet present in production, so authenticated loading failed on `public.entity_types` | Preserve Phase 5 and Phase 6 source work without exposing it at the public alias or applying production migrations early |
+| 2026-09-01 | PLAN-023 | Repair the Phase 5 implementation gate before resuming Phase 6 and isolate remaining v3 work from the production branch | Audit found unwired screen loaders, incomplete pagination/sort semantics, inconsistent weekly metrics, a split capture workflow, and lost regression coverage | Continue on `command-v3`; production stays on Phase 4 and live v3 verification remains a Phase 8 gate |
+| 2026-09-01 | PLAN-024 | Treat local production-contract verification as the Phase 5 implementation gate and reserve authenticated production smoke testing for Phase 8 | Requiring live v3 reads before the planned schema/backfill cutover creates an impossible and unsafe phase dependency | Phase 5 may close after local application/database/browser gates pass; the public alias stays on Phase 4 until the coordinated cutover |
 
 ---
 
@@ -1054,3 +1063,8 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 1.8 | 2026-09-01 | Started Phase 5 with the client-side v3 data-model and versioned-cache foundation as the first controlled slice; routes remain on the legacy compatibility payload until the new boundary is verified |
 | 1.9 | 2026-09-01 | Completed the first Phase 5 slice with the canonical client aggregate, deterministic demo projection, non-destructive versioned-cache migration, bounded canonical aggregate reads, and passing unit/type/build/browser regression checks |
 | 2.0 | 2026-09-01 | Completed Phase 5 with canonical registry-driven Today, Due, Browse, Item, Capture/Edit, Schedule, Outcome, archive/restore, drafts, legacy-route mapping, and passing unit/type/build/mobile browser verification; Phase 6 is next |
+| 2.1 | 2026-09-01 | Started Phase 6 after committing and pushing Phase 5 (`a3552ac`) to the GitHub-triggered Vercel deployment; the first slice replaces the MCP contract foundation locally without deploying database or Edge Function changes |
+| 2.2 | 2026-09-01 | Completed the first local Phase 6 MCP-contract slice: the public surface is the approved five generic tools and `command_describe_types` reads active registry schemas; added contract/repository tests. Fixed CI to install Chromium rather than WebKit, matching the configured Playwright browser, and pushed the fix as `e1b6676` for deployment verification |
+| 2.3 | 2026-09-01 | Corrected the Phase 5 live-mode claim after production exposed the missing `public.entity_types` cutover dependency; restored the public Vercel alias to the compatible Phase 4 deployment from `e2d5d15` and left production database/functions/data unchanged |
+| 2.4 | 2026-09-01 | Reopened Phase 5 for an evidence-backed correction pass, paused the partial Phase 6 slice, and moved ongoing work to `command-v3` so production remains pinned safely to Phase 4 |
+| 2.5 | 2026-09-01 | Completed the Phase 5 correction pass with wired paged reads, timestamp sorting, event-consistent weekly outcomes, transactional capture, restored responsive/large-data coverage, corrected deployment documentation, and passing unit/type/build/browser/database verification; resumed Phase 6 |

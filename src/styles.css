@@ -2031,6 +2031,15 @@ fieldset > legend,
   margin: 10px 0 18px;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+}
+.pagination span { color: var(--muted); font-size: 11px; }
+
 .form-actions-split {
   justify-content: space-between;
 }
@@ -2373,6 +2382,7 @@ textarea:focus-visible {
   }
 
   .urgent-lead { padding: 18px; }
+  .floor-field.is-after-exception { display: none; }
   .three-floors { grid-template-columns: 1fr; }
   .three-floors .floor { border-right: 0; border-bottom: 1px solid rgba(212, 160, 60, .15); padding: 10px 0; }
   .three-floors .floor:last-child { border-bottom: 0; }
@@ -2382,6 +2392,7 @@ textarea:focus-visible {
   .today-action-row .primary-button { min-width: 0; flex: 1; }
   .commitment-row { align-items: stretch; flex-direction: column; gap: 8px; padding: 12px 0; }
   .commitment-row.is-overdue { padding-left: 10px; }
+  .commitment-main strong, .commitment-main small { overflow: visible; white-space: normal; }
   .commitment-outcome { align-self: flex-start; }
   .filter-bar, .browse-controls { align-items: stretch; flex-direction: column; }
   .filter-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }

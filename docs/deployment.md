@@ -15,11 +15,20 @@ today.
 - **Backend release trigger:** the manually dispatched `Deploy Supabase`
   workflow in `.github/workflows/deploy-supabase.yml`.
 - **Verification:** `.github/workflows/ci.yml` runs for pushes to `main` and pull
-  requests. CI verifies the build, unit tests, mobile WebKit E2E tests, and local
+  requests. CI verifies the build, unit tests, Chromium E2E tests, and local
   pgTAP database tests; it does not deploy.
 
 The app retains hash routes. Vercel therefore needs no SPA rewrite for current
 deep links, and existing `/#/...` bookmarks remain valid.
+
+### Temporary v3 release pin
+
+The public alias currently points to the Phase 4 deployment from commit
+`e2d5d15`. Phase 5 was briefly deployed before the v3 production tables existed
+and correctly failed on the missing `public.entity_types` dependency. Remaining
+v3 work therefore continues on `command-v3`; do not move the production alias
+or merge that branch to the Vercel production branch until the Phase 8 export,
+migration, backfill, verification, and smoke-test procedure is authorised.
 
 ## Frontend configuration and release
 

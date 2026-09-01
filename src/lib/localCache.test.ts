@@ -68,6 +68,18 @@ describe('versioned command data caches', () => {
     expect(JSON.parse(localStorage.getItem('command.prototype.v3') ?? '{}').data.version).toBe(3)
   })
 
+  it('adds stable timestamps when reading an older v3 entity cache', () => {
+    const data = createDemoData(new Date('2026-08-25T06:00:00Z'))
+    const legacyShape = {
+      ...data,
+      entities: data.entities.map(({ createdAt: _createdAt, updatedAt: _updatedAt, ...entity }) => entity),
+    }
+    localStorage.setItem('command.prototype.v3', JSON.stringify({ version: 3, data: legacyShape }))
+
+    const restored = readDemoData()
+    expect(restored.entities.every((entity) => Boolean(entity.createdAt && entity.updatedAt))).toBe(true)
+  })
+
   it('ignores an incompatible v3 cache instead of exposing partial state', () => {
     localStorage.setItem('command.prototype.v3', JSON.stringify({
       version: 3,

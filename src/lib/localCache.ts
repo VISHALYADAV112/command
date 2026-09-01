@@ -1,7 +1,7 @@
 import { createDemoData } from '../data'
 import { settings as defaultSettings } from '../domain'
 import type { CommandData, LegacyCommandData, Settings } from '../types'
-import { isCommandData, upgradeLegacyData } from '../v3Data'
+import { isCommandData, normalizeCommandData, upgradeLegacyData } from '../v3Data'
 
 const DATA_KEY = 'command.prototype.v3'
 const SETTINGS_KEY = 'command.prototype.settings.v3'
@@ -74,7 +74,7 @@ export function clearDemoCache(): void {
 function readCommandData(key: string): CommandData | null {
   const parsed = readJson(key)
   if (!isEnvelope(parsed) || !isCommandData(parsed.data)) return null
-  return parsed.data
+  return normalizeCommandData(parsed.data)
 }
 
 function readLegacyData(key: string): Partial<LegacyCommandData> | null {

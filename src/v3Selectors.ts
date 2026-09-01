@@ -65,12 +65,17 @@ export function browseEntities(
 
   const direction = type.defaultSortDirection === 'asc' ? 1 : -1
   return matching.sort((left, right) => {
-    const leftValue = type.defaultSortField === 'title'
-      ? left.title : displayFieldValue(left.fields[type.defaultSortField])
-    const rightValue = type.defaultSortField === 'title'
-      ? right.title : displayFieldValue(right.fields[type.defaultSortField])
+    const leftValue = sortValue(left, type.defaultSortField)
+    const rightValue = sortValue(right, type.defaultSortField)
     return direction * leftValue.localeCompare(rightValue) || left.id.localeCompare(right.id)
   })
+}
+
+function sortValue(entity: Entity, field: string): string {
+  if (field === 'title') return entity.title
+  if (field === 'created_at') return entity.createdAt
+  if (field === 'updated_at') return entity.updatedAt
+  return displayFieldValue(entity.fields[field])
 }
 
 export function threeFloorStatus(data: CommandData, settings: Settings, today: Date) {
@@ -84,13 +89,16 @@ export function threeFloorStatus(data: CommandData, settings: Settings, today: D
 
 export function weeklyOutcomeProgress(data: CommandData, today: Date) {
   const [weekStart, , , , , , weekEnd] = currentWeek(today).map(dateKey)
-  const inWeek = (value: EntityFieldValue | undefined): boolean => typeof value === 'string' && value >= weekStart && value <= weekEnd
-  const application = findType(data, 'application')
-  const person = findType(data, 'person')
-  const entities = data.entities.filter((entity) => !entity.archivedAt)
+  const inWeek = (occurredAt: string): boolean => {
+    const day = dateKey(new Date(occurredAt))
+    return day >= weekStart && day <= weekEnd
+  }
+  const countDistinct = (eventType: string) => new Set(data.activityEvents
+    .filter((event) => event.eventType === eventType && event.entityId && inWeek(event.occurredAt))
+    .map((event) => event.entityId)).size
   return {
-    applications: entities.filter((entity) => entity.entityTypeId === application?.id && inWeek(entity.fields.applied_on)).length,
-    peopleContacted: entities.filter((entity) => entity.entityTypeId === person?.id && inWeek(entity.fields.last_contacted_on)).length,
+    applications: countDistinct('application.submitted'),
+    peopleContacted: countDistinct('person.contacted'),
   }
 }
 

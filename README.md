@@ -17,8 +17,10 @@ npm test
 npm run test:e2e
 ```
 
-The frontend deploys to Vercel from `main`; backend deployment is a separate,
-manually dispatched GitHub Actions workflow.
+The frontend normally deploys to Vercel from `main`; backend deployment is a
+separate, manually dispatched GitHub Actions workflow. During the v3 migration,
+ongoing work stays on `command-v3` and the public alias remains pinned to the
+compatible Phase 4 deployment until the controlled Phase 8 cutover.
 
 ## Live deployment
 
@@ -32,23 +34,25 @@ the source of truth when older specifications or prototypes conflict.
 
 ## Implemented
 
-- Four derived bindu states for today's Node, DSA, Math, and job-hunt floors.
-- Fast daily log sheet (with unsaved-draft retention) and recall-first learning
-  review using the specified 21 / 7 / 3 / 1 day intervals and mastery retirement.
-- Hash-routed views: Today, Jobs, People, Projects, Ideas, Learning.
-- Application lifecycle: create/edit/delete with lane, channel, status, CTC,
-  applied date, referral state, resume/Drive links, notes, window, follow-up,
-  referrer, and job URL; one-tap "Deadline →
-  Calendar" writes for applications and projects (idempotent).
-- Ideas capture with status progression; concept capture feeding the review
-  queue; people list feeding referral selection.
+- Three daily practice floors for Node, DSA, and Math; historical job-hunt
+  minutes remain preserved while weekly outcomes track 15 submitted
+  applications and 2 new people contacted.
+- Registry-driven v3 source routes for Today, Due, Browse, and universal Item,
+  with generic Capture/Edit, Schedule, Outcome, archive/restore, drafts, and
+  bounded pagination. These workflows remain off the public production alias
+  until the v3 data cutover.
+- Canonical entities and commitments plus immutable activity provenance. Ideas
+  migrate to note records tagged `idea`; normal workflows do not expose hard
+  delete.
+- Fast daily logging and the existing recall-first learning schedule remain
+  preserved during migration.
 - Google sign-in (owner-only via a database signup guard) and Google Calendar:
   connect/disconnect, live "Today" strip of events; OAuth refresh tokens stored
   AES-256-GCM encrypted in the database with the key held only server-side.
 - CSP headers, service-worker update prompt, JSON/CSV export, PWA install.
-- Remote MCP access for AI clients through Supabase OAuth 2.1. The initial
-  tools expose today/week context, search, projects, applications, learning
-  due, and idempotent capture; settings shows and revokes connected clients.
+- Remote MCP access through Supabase OAuth 2.1. Production retains the existing
+  gateway until cutover; Phase 6 is replacing its hardcoded surface with five
+  generic registry-aware tools and approval-gated proposals.
 
 ## Connect an AI client
 
@@ -80,6 +84,11 @@ Supabase migrations under `supabase/migrations/`:
 10. authenticated core-table grants (still owner-filtered by RLS)
 11. active-project next-action invariant
 12. MCP audit log and user-scoped cross-entity search
+13–19. v3 registry, entities, commitments, immutable activity, proposals,
+transactional writes, and bounded derived reads
+20–24. built-in schemas, idempotent legacy backfill, compatibility reports,
+and deferred ownership/Calendar corrections
+25. Phase 5 outcome provenance and atomic entity-plus-commitment capture
 
 The `google-calendar` edge function handles the PKCE flow, idempotent event
 writes, token revocation/refresh, request throttling, and request-scoped CORS;
@@ -101,6 +110,8 @@ release paths and secrets boundary. The durable decisions are recorded in
 [`docs/adr/0001-vercel-frontend-hosting.md`](docs/adr/0001-vercel-frontend-hosting.md)
 and
 [`docs/adr/0002-lightweight-client-infrastructure.md`](docs/adr/0002-lightweight-client-infrastructure.md).
+The coordinated v3 release boundary is recorded in
+[`docs/adr/0003-coordinate-v3-production-cutover.md`](docs/adr/0003-coordinate-v3-production-cutover.md).
 
 ## Verification
 

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { CommandData, Commitment, DailyLog, Entity, Idea, JobApplication, LearningItem, Person, Project, Settings } from './types'
+import type { CommandData, Commitment, DailyLog, Entity, EntityType, Idea, JobApplication, LearningItem, Person, Project, Settings } from './types'
 import { getSupabase } from './lib/supabase'
 import { isSupabaseConfigured } from './lib/config'
 import { onAuthStateChange, signOut as doSignOut, getSession } from './lib/auth'
-import { loadRemoteData, loadRemoteSettings } from './lib/api'
+import { loadRemoteData, loadRemoteSettings, loadV3BrowsePage, loadV3DuePage, type RemoteDueItem, type RemotePage } from './lib/api'
 import { settings as defaultSettings } from './domain'
 import {
   clearDemoCache, readDemoData, readLiveCache, readStoredSettings,
@@ -28,6 +28,8 @@ export interface UseCommandDataResult {
   syncMessage: string
   online: boolean
   retrySync: () => void
+  loadDuePage: (day: string, window: 'overdue' | 'today' | 'week' | 'all', typeKey: string | null, offset: number) => Promise<RemotePage<RemoteDueItem>>
+  loadBrowsePage: (type: EntityType, offset: number) => Promise<RemotePage<Entity>>
   saveLog: (log: DailyLog) => boolean
   saveApplication: (app: JobApplication) => boolean
   deleteApplication: (id: string) => boolean
@@ -42,6 +44,7 @@ export interface UseCommandDataResult {
   deleteLearning: (id: string) => boolean
   saveEntity: (entity: Entity) => boolean
   saveCommitment: (commitment: Commitment) => boolean
+  saveCapture: (entity: Entity, commitment: Commitment | null) => boolean
   archiveEntity: (entity: Entity) => boolean
   restoreEntity: (entity: Entity) => boolean
   saveSettings: (next: Settings) => boolean
@@ -127,6 +130,23 @@ export function useCommandData(): UseCommandDataResult {
   })
   const v3Mutations = createV3Mutations({ mode, session, dataRef, setData: setDataState, sync })
 
+  const loadDuePage = useCallback(async (
+    day: string,
+    window: 'overdue' | 'today' | 'week' | 'all',
+    typeKey: string | null,
+    offset: number,
+  ): Promise<RemotePage<RemoteDueItem>> => {
+    const client = getSupabase()
+    if (mode !== 'live' || !client) return { items: [], hasMore: false }
+    return loadV3DuePage(client, day, window, typeKey, offset)
+  }, [mode])
+
+  const loadBrowsePage = useCallback(async (type: EntityType, offset: number): Promise<RemotePage<Entity>> => {
+    const client = getSupabase()
+    if (mode !== 'live' || !client) return { items: [], hasMore: false }
+    return loadV3BrowsePage(client, type, offset)
+  }, [mode])
+
   function signOutFromCommand(): void {
     if (mode === 'demo') {
       clearDemoCache()
@@ -153,6 +173,8 @@ export function useCommandData(): UseCommandDataResult {
     syncMessage: sync.message,
     online: sync.online,
     retrySync: sync.retry,
+    loadDuePage,
+    loadBrowsePage,
     ...mutations,
     ...v3Mutations,
     signOut: signOutFromCommand,

@@ -75,7 +75,7 @@ export function upgradeLegacyData(raw: Partial<LegacyCommandData>): CommandData 
     entityTypes,
     entities,
     commitments,
-    activityEvents: createMigrationEvents(entities, commitments),
+    activityEvents: createMigrationEvents(entities, commitments, legacy),
     legacy,
   }
 }
@@ -89,6 +89,22 @@ export function isCommandData(value: unknown): value is CommandData {
     && Array.isArray(data.commitments)
     && Array.isArray(data.activityEvents)
     && isLegacyData(data.legacy)
+}
+
+export function normalizeCommandData(data: CommandData): CommandData {
+  const firstEventByEntity = new Map<string, string>()
+  for (const event of data.activityEvents) {
+    if (!event.entityId) continue
+    const current = firstEventByEntity.get(event.entityId)
+    if (!current || event.occurredAt < current) firstEventByEntity.set(event.entityId, event.occurredAt)
+  }
+  return {
+    ...data,
+    entities: data.entities.map((item) => {
+      const createdAt = item.createdAt ?? firstEventByEntity.get(item.id) ?? '1970-01-01T00:00:00.000Z'
+      return { ...item, createdAt, updatedAt: item.updatedAt ?? createdAt }
+    }),
+  }
 }
 
 function isLegacyData(value: unknown): value is LegacyCommandData {
@@ -176,7 +192,8 @@ function ideaEntity(item: Idea, entityTypeId: string): Entity {
 }
 
 function entity(id: string, entityTypeId: string, title: string, fields: Entity['fields']): Entity {
-  return { id, entityTypeId, title, fields, schemaVersion: 2, archivedAt: null }
+  const timestamp = '2026-01-01T00:00:00.000Z'
+  return { id, entityTypeId, title, fields, schemaVersion: 2, archivedAt: null, createdAt: timestamp, updatedAt: timestamp }
 }
 
 function createCommitments(data: LegacyCommandData): Commitment[] {
@@ -191,7 +208,7 @@ function createCommitments(data: LegacyCommandData): Commitment[] {
   ].filter((item): item is Commitment => item !== null)
 }
 
-function createMigrationEvents(entities: Entity[], commitments: Commitment[]): ActivityEvent[] {
+function createMigrationEvents(entities: Entity[], commitments: Commitment[], legacy: LegacyCommandData): ActivityEvent[] {
   const occurredAt = '2026-01-01T00:00:00.000Z'
   return [
     ...entities.map((entity) => ({
@@ -218,7 +235,29 @@ function createMigrationEvents(entities: Entity[], commitments: Commitment[]): A
       occurredAt,
       createdAt: occurredAt,
     })),
+    ...legacy.applications.flatMap((item) => item.appliedOn ? [outcomeEvent(
+      item.id, 'application.submitted', item.appliedOn, `migration:application-submitted:${item.id}`,
+    )] : []),
+    ...legacy.people.flatMap((item) => item.lastContactOn ? [outcomeEvent(
+      item.id, 'person.contacted', item.lastContactOn, `migration:person-contacted:${item.id}`,
+    )] : []),
   ]
+}
+
+function outcomeEvent(entityId: string, eventType: string, day: string, idempotencyKey: string): ActivityEvent {
+  const occurredAt = `${day}T06:30:00.000Z`
+  return {
+    id: stableUuid(`outcome-event:${eventType}:${entityId}:${day}`),
+    entityId,
+    commitmentId: null,
+    eventType,
+    payload: { migration: 'command-v3', day },
+    source: 'migration',
+    clientId: null,
+    idempotencyKey,
+    occurredAt,
+    createdAt: occurredAt,
+  }
 }
 
 function commitment(

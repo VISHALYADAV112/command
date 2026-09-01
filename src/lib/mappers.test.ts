@@ -67,6 +67,8 @@ describe('database mappers', () => {
       },
       schema_version: 2,
       archived_at: '2026-08-31T12:00:00.000Z',
+      created_at: '2026-08-20T12:00:00.000Z',
+      updated_at: '2026-08-31T12:00:00.000Z',
     }
 
     const mapped = mapEntity(row)
@@ -76,7 +78,8 @@ describe('database mappers', () => {
       fields: { company: 'Acme', score: 4.5, referred: true, optional: null },
       archivedAt: '2026-08-31T12:00:00.000Z',
     })
-    expect(entityToDb(mapped)).toEqual(row)
+    const { created_at: _createdAt, updated_at: _updatedAt, ...writeRow } = row
+    expect(entityToDb(mapped)).toEqual(writeRow)
   })
 
   it('maps commitments, immutable activity, and proposal review state', () => {

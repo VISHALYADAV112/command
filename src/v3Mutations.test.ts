@@ -23,10 +23,13 @@ describe('v3 optimistic mutations', () => {
       id: crypto.randomUUID(), entityTypeId: type.id, title: 'A durable note',
       fields: { tag: 'idea', status: 'captured', problem: null, target_market: null, monetization: null, next_action: null },
       schemaVersion: type.schemaVersion, archivedAt: null,
+      createdAt: '2026-08-25T06:30:00.000Z', updatedAt: '2026-08-25T06:30:00.000Z',
     }
 
     expect(mutations.saveEntity(entity)).toBe(true)
-    expect(dataRef.current?.entities).toContainEqual(entity)
+    expect(dataRef.current?.entities.find((item) => item.id === entity.id)).toMatchObject({
+      ...entity, updatedAt: expect.any(String),
+    })
     expect(dataRef.current?.activityEvents[0]).toMatchObject({ entityId: entity.id, eventType: 'entity.created', source: 'ui' })
   })
 
@@ -44,5 +47,26 @@ describe('v3 optimistic mutations', () => {
     expect(mutations.archiveEntity(entity)).toBe(true)
     expect(dataRef.current?.entities.find((item) => item.id === entity.id)?.archivedAt).not.toBeNull()
     expect(dataRef.current?.entities.some((item) => item.id === entity.id)).toBe(true)
+  })
+
+  it('captures an entity and first commitment in one optimistic mutation', () => {
+    const data = createDemoData(new Date('2026-08-25T06:00:00Z'))
+    const { dataRef, setData, mutations } = harness(data)
+    const type = data.entityTypes.find((item) => item.typeKey === 'application')!
+    const entity: Entity = {
+      id: crypto.randomUUID(), entityTypeId: type.id, title: 'Acme — Engineer',
+      fields: { applied_on: '2026-08-25' }, schemaVersion: type.schemaVersion, archivedAt: null,
+      createdAt: '2026-08-25T06:30:00.000Z', updatedAt: '2026-08-25T06:30:00.000Z',
+    }
+    const commitment: Commitment = {
+      id: crypto.randomUUID(), entityId: entity.id, kind: 'follow-up', action: 'Send follow-up', dueOn: '2026-08-26',
+      state: 'open', outcome: null, completedAt: null, originSource: 'ui',
+    }
+
+    expect(mutations.saveCapture(entity, commitment)).toBe(true)
+    expect(setData).toHaveBeenCalledTimes(1)
+    expect(dataRef.current?.entities.some((item) => item.id === entity.id)).toBe(true)
+    expect(dataRef.current?.commitments).toContainEqual(commitment)
+    expect(dataRef.current?.activityEvents.some((event) => event.entityId === entity.id && event.eventType === 'application.submitted')).toBe(true)
   })
 })

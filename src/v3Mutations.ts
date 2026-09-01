@@ -1,9 +1,9 @@
 import type { Session } from '@supabase/supabase-js'
-import type { ActivityEvent, CommandData, Commitment, Entity, Settings } from './types'
+import type { ActivityEvent, CommandData, Commitment, Entity, EntityType, Settings } from './types'
 import type { CommandMode } from './useCommandData'
 import type { RemoteSync } from './useRemoteSync'
 import { getSupabase } from './lib/supabase'
-import { writeV3Commitment, writeV3Entity } from './lib/api'
+import { writeV3Capture, writeV3Commitment, writeV3Entity } from './lib/api'
 import { uid } from './ui'
 
 interface Options {
@@ -40,18 +40,22 @@ export function createV3Mutations({ mode, session, dataRef, setData, sync }: Opt
   function saveEntity(entity: Entity): boolean {
     if (!canMutate()) return false
     const idempotencyKey = `ui-entity-${uid()}`
+    const nextEntity = { ...entity, updatedAt: new Date().toISOString() }
     update((data) => {
-      const existing = data.entities.find((item) => item.id === entity.id)
+      const existing = data.entities.find((item) => item.id === nextEntity.id)
       const eventType = !existing ? 'entity.created'
-        : !existing.archivedAt && entity.archivedAt ? 'entity.archived'
-          : existing.archivedAt && !entity.archivedAt ? 'entity.restored' : 'entity.updated'
+        : !existing.archivedAt && nextEntity.archivedAt ? 'entity.archived'
+          : existing.archivedAt && !nextEntity.archivedAt ? 'entity.restored' : 'entity.updated'
+      const outcome = outcomeForEntity(data.entityTypes, existing, nextEntity, idempotencyKey)
       return {
         ...data,
-        entities: replace(data.entities, entity),
-        activityEvents: prependEvent(data.activityEvents, event(eventType, entity.id, null, idempotencyKey)),
+        entities: replace(data.entities, nextEntity),
+        activityEvents: outcome
+          ? prependEvent(prependEvent(data.activityEvents, event(eventType, nextEntity.id, null, idempotencyKey)), outcome)
+          : prependEvent(data.activityEvents, event(eventType, nextEntity.id, null, idempotencyKey)),
       }
     })
-    remote((client) => writeV3Entity(client, entity, idempotencyKey))
+    remote((client) => writeV3Entity(client, nextEntity, idempotencyKey))
     return true
   }
 
@@ -74,6 +78,29 @@ export function createV3Mutations({ mode, session, dataRef, setData, sync }: Opt
     return true
   }
 
+  function saveCapture(entity: Entity, commitment: Commitment | null): boolean {
+    if (!commitment) return saveEntity(entity)
+    if (!canMutate()) return false
+    const idempotencyKey = `ui-capture-${uid()}`
+    const entityKey = `${idempotencyKey}:entity`
+    const commitmentKey = `${idempotencyKey}:commitment`
+    const nextEntity = { ...entity, updatedAt: new Date().toISOString() }
+    update((data) => {
+      const outcome = outcomeForEntity(data.entityTypes, undefined, nextEntity, entityKey)
+      let events = prependEvent(data.activityEvents, event('entity.created', nextEntity.id, null, entityKey))
+      if (outcome) events = prependEvent(events, outcome)
+      events = prependEvent(events, event('commitment.created', commitment.entityId, commitment.id, commitmentKey))
+      return {
+        ...data,
+        entities: replace(data.entities, nextEntity),
+        commitments: replace(data.commitments, commitment),
+        activityEvents: events,
+      }
+    })
+    remote((client) => writeV3Capture(client, nextEntity, commitment, idempotencyKey))
+    return true
+  }
+
   function archiveEntity(entity: Entity): boolean {
     return saveEntity({ ...entity, archivedAt: new Date().toISOString() })
   }
@@ -82,7 +109,7 @@ export function createV3Mutations({ mode, session, dataRef, setData, sync }: Opt
     return saveEntity({ ...entity, archivedAt: null })
   }
 
-  return { saveEntity, saveCommitment, archiveEntity, restoreEntity }
+  return { saveEntity, saveCommitment, saveCapture, archiveEntity, restoreEntity }
 }
 
 function replace<T extends { id: string }>(items: T[], item: T): T[] {
@@ -109,4 +136,14 @@ function event(eventType: string, entityId: string, commitmentId: string | null,
     occurredAt: now,
     createdAt: now,
   }
+}
+
+function outcomeForEntity(types: EntityType[], existing: Entity | undefined, entity: Entity, idempotencyKey: string): ActivityEvent | null {
+  const typeKey = types.find((type) => type.id === entity.entityTypeId)?.typeKey
+  const field = typeKey === 'application' ? 'applied_on' : typeKey === 'person' ? 'last_contacted_on' : null
+  const eventType = typeKey === 'application' ? 'application.submitted' : typeKey === 'person' ? 'person.contacted' : null
+  const day = field ? entity.fields[field] : null
+  if (!field || !eventType || typeof day !== 'string' || day === existing?.fields[field]) return null
+  const next = event(eventType, entity.id, null, `${idempotencyKey}:outcome`)
+  return { ...next, payload: { day }, occurredAt: `${day}T06:30:00.000Z` }
 }

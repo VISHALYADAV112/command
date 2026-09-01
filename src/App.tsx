@@ -45,8 +45,7 @@ export function App() {
   }
 
   function saveEntity(entity: Entity, firstCommitment: Commitment | null): boolean {
-    if (!command.saveEntity(entity)) return false
-    if (firstCommitment && !command.saveCommitment(firstCommitment)) return false
+    if (!command.saveCapture(entity, firstCommitment)) return false
     showNotice(firstCommitment ? 'Record captured and scheduled' : 'Record saved')
     return true
   }
@@ -89,8 +88,8 @@ export function App() {
       <AppHeader today={today} live={command.mode === 'live'} theme={command.settings.theme} onOpenSettings={() => setSettingsOpen(true)} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
       <ViewNav route={route} navigate={navigate} onCapture={() => openCapture()} onMore={() => setSettingsOpen(true)} />
       {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} />}
-      {route.kind === 'due' && <DueView data={data} today={today} window={route.window} typeKey={route.typeKey} onChange={(window, typeKey) => navigate({ kind: 'due', window, typeKey })} onOutcome={setOutcome} onOpenItem={openItem} onCapture={openCapture} />}
-      {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => setSettingsOpen(true)} />}
+      {route.kind === 'due' && <DueView data={data} today={today} window={route.window} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadDuePage : undefined} onChange={(window, typeKey) => navigate({ kind: 'due', window, typeKey })} onOutcome={setOutcome} onOpenItem={openItem} onCapture={openCapture} />}
+      {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadBrowsePage : undefined} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => setSettingsOpen(true)} />}
       {route.kind === 'item' && <ItemView data={data} entityId={route.id} onEdit={setEditingEntity} onSchedule={(entity, commitment = null) => setScheduling({ entity, commitment })} onOutcome={setOutcome} onArchive={archive} onRestore={restore} />}
       <footer><img src="./assets/command-mark.svg" alt="" /><span>Keep the centre clear.</span></footer>
     </div>

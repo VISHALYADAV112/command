@@ -142,6 +142,8 @@ export interface Entity {
   fields: Record<string, EntityFieldValue>
   schemaVersion: number
   archivedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type CommitmentState = 'open' | 'completed' | 'cancelled'

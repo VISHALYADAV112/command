@@ -1,5 +1,5 @@
 import type { ActivityEvent, AgentProposal, CommandData, Commitment, DailyLog, Entity, EntityFieldDefinition, EntityType, Idea, JobApplication, LearningItem, Person, Project, PracticeKey, Settings } from '../types'
-import type { DbActivityEvent, DbAgentProposal, DbCommitment, DbDailyLog, DbEntity, DbEntityType, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './db.rows'
+import type { DbActivityEvent, DbAgentProposal, DbCommitment, DbDailyLog, DbEntity, DbEntityType, DbEntityWrite, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './db.rows'
 
 export function mapLog(row: DbDailyLog): DailyLog {
   return {
@@ -264,10 +264,12 @@ export function mapEntity(row: DbEntity): Entity {
     fields: row.fields as Entity['fields'],
     schemaVersion: row.schema_version,
     archivedAt: row.archived_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 
-export function entityToDb(entity: Entity): DbEntity {
+export function entityToDb(entity: Entity): DbEntityWrite {
   return {
     id: entity.id,
     entity_type_id: entity.entityTypeId,

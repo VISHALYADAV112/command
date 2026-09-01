@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { LearningItem } from '../types'
+import type { Commitment, Entity, LearningItem } from '../types'
+import { createBuiltInEntityTypes } from '../v3Registry'
 import {
-  loadRemoteData, loadV3Browse, loadV3Due, loadV3Item, loadV3Registry, loadV3Today,
-  REMOTE_READ_LIMIT, upsertLearning, V3_SCREEN_READ_LIMIT,
+  loadRemoteData, loadV3Browse, loadV3BrowsePage, loadV3Due, loadV3DuePage, loadV3Item, loadV3Registry, loadV3Today,
+  REMOTE_READ_LIMIT, upsertLearning, V3_PAGE_SIZE, V3_SCREEN_READ_LIMIT, writeV3Capture,
 } from './api'
 import type { CommandClient } from './supabase'
 
@@ -95,6 +96,17 @@ describe('remote reads', () => {
     })
   })
 
+  it('requests one extra Due row to expose bounded page availability', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null })
+    const client = { rpc } as unknown as CommandClient
+
+    await expect(loadV3DuePage(client, '2026-08-25', 'all', null, 25)).resolves.toEqual({ items: [], hasMore: false })
+    expect(rpc).toHaveBeenCalledWith('get_v3_due', {
+      p_day: '2026-08-25', p_window: 'all', p_type_key: undefined,
+      p_limit: V3_PAGE_SIZE + 1, p_offset: 25,
+    })
+  })
+
   it('bounds every registry, Today, Browse, and Item loader', async () => {
     const calls: Array<{ table: string; method: string; args: unknown[] }> = []
     const rpc = vi.fn().mockResolvedValue({ data: {}, error: null })
@@ -127,5 +139,49 @@ describe('remote reads', () => {
     expect(calls).toContainEqual({ table: 'commitments', method: 'limit', args: [V3_SCREEN_READ_LIMIT] })
     expect(calls).toContainEqual({ table: 'activity_events', method: 'limit', args: [V3_SCREEN_READ_LIMIT] })
     expect(rpc).toHaveBeenCalledWith('get_v3_today', { p_day: '2026-08-25', p_limit: V3_SCREEN_READ_LIMIT })
+  })
+
+  it('pages Browse using the registry default sort', async () => {
+    const calls: Array<{ method: string; args: unknown[] }> = []
+    const client = {
+      from() {
+        const builder = {
+          select(...args: unknown[]) { calls.push({ method: 'select', args }); return builder },
+          eq(...args: unknown[]) { calls.push({ method: 'eq', args }); return builder },
+          is(...args: unknown[]) { calls.push({ method: 'is', args }); return builder },
+          order(...args: unknown[]) { calls.push({ method: 'order', args }); return builder },
+          range(...args: unknown[]) { calls.push({ method: 'range', args }); return Promise.resolve({ data: [], error: null }) },
+        }
+        return builder
+      },
+    } as unknown as CommandClient
+
+    const type = createBuiltInEntityTypes().find((item) => item.typeKey === 'application')!
+    await expect(loadV3BrowsePage(client, type, 50)).resolves.toEqual({ items: [], hasMore: false })
+    expect(calls).toContainEqual({ method: 'order', args: ['updated_at', { ascending: false }] })
+    expect(calls).toContainEqual({ method: 'range', args: [50, 50 + V3_PAGE_SIZE] })
+  })
+})
+
+describe('v3 transactional capture', () => {
+  it('sends the entity and first commitment through one RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {}, error: null })
+    const client = { rpc } as unknown as CommandClient
+    const type = createBuiltInEntityTypes()[0]
+    const entity: Entity = {
+      id: crypto.randomUUID(), entityTypeId: type.id, title: 'Acme — Engineer', fields: {},
+      schemaVersion: type.schemaVersion, archivedAt: null,
+      createdAt: '2026-08-25T06:30:00.000Z', updatedAt: '2026-08-25T06:30:00.000Z',
+    }
+    const commitment: Commitment = {
+      id: crypto.randomUUID(), entityId: entity.id, kind: 'follow-up', action: 'Follow up', dueOn: '2026-08-26',
+      state: 'open', outcome: null, completedAt: null, originSource: 'ui',
+    }
+
+    await writeV3Capture(client, entity, commitment, 'capture-request-001')
+    expect(rpc).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledWith('write_v3_capture', expect.objectContaining({
+      p_entity_id: entity.id, p_commitment_id: commitment.id, p_idempotency_key: 'capture-request-001',
+    }))
   })
 })

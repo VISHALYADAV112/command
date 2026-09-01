@@ -16,6 +16,12 @@ function throwIfError(result: { error: { message: string } | null }): void {
 
 export const REMOTE_READ_LIMIT = 1000
 export const V3_SCREEN_READ_LIMIT = 100
+export const V3_PAGE_SIZE = 25
+
+export interface RemotePage<T> {
+  items: T[]
+  hasMore: boolean
+}
 
 export interface RemoteDueItem {
   commitmentId: string
@@ -137,19 +143,26 @@ export async function loadV3Due(
     p_offset: offset,
   })
   throwIfError(result)
-  return (result.data ?? []).map((item) => ({
-    commitmentId: item.commitment_id,
-    entityId: item.entity_id,
-    entityTypeId: item.entity_type_id,
-    typeKey: item.type_key,
-    entityTitle: item.entity_title,
-    kind: item.kind,
-    action: item.action,
-    dueOn: item.due_on,
-    state: item.state,
-    originSource: item.origin_source,
-    dueStatus: item.due_status,
-  }))
+  return (result.data ?? []).map(mapRemoteDueItem)
+}
+
+export async function loadV3DuePage(
+  client: CommandClient,
+  day: string,
+  window: 'overdue' | 'today' | 'week' | 'all',
+  typeKey: string | null,
+  offset = 0,
+): Promise<RemotePage<RemoteDueItem>> {
+  const result = await client.rpc('get_v3_due', {
+    p_day: day,
+    p_window: window,
+    p_type_key: typeKey ?? undefined,
+    p_limit: V3_PAGE_SIZE + 1,
+    p_offset: offset,
+  })
+  throwIfError(result)
+  const items = (result.data ?? []).map(mapRemoteDueItem)
+  return { items: items.slice(0, V3_PAGE_SIZE), hasMore: items.length > V3_PAGE_SIZE }
 }
 
 export async function loadV3Browse(client: CommandClient, entityTypeId: string, offset = 0): Promise<Entity[]> {
@@ -158,6 +171,23 @@ export async function loadV3Browse(client: CommandClient, entityTypeId: string, 
     .range(offset, offset + V3_SCREEN_READ_LIMIT - 1)
   throwIfError(result)
   return (result.data ?? []).map(mapEntity)
+}
+
+export async function loadV3BrowsePage(
+  client: CommandClient,
+  type: EntityType,
+  offset = 0,
+): Promise<RemotePage<Entity>> {
+  const sortColumn = type.defaultSortField === 'title'
+    || type.defaultSortField === 'created_at'
+    || type.defaultSortField === 'updated_at'
+    ? type.defaultSortField : `fields->>${type.defaultSortField}`
+  const result = await client.from('entities').select('*').eq('entity_type_id', type.id)
+    .is('archived_at', null).order(sortColumn, { ascending: type.defaultSortDirection === 'asc' }).order('id')
+    .range(offset, offset + V3_PAGE_SIZE)
+  throwIfError(result)
+  const items = (result.data ?? []).map(mapEntity)
+  return { items: items.slice(0, V3_PAGE_SIZE), hasMore: items.length > V3_PAGE_SIZE }
 }
 
 export async function loadV3Item(client: CommandClient, entityId: string): Promise<{
@@ -180,7 +210,7 @@ export async function loadV3Item(client: CommandClient, entityId: string): Promi
 }
 
 export async function writeV3Entity(client: CommandClient, entity: Entity, idempotencyKey: string): Promise<void> {
-  const result = await client.rpc('write_v3_entity', {
+  const result = await client.rpc('write_v3_entity_with_outcome', {
     p_id: entity.id,
     p_entity_type_id: entity.entityTypeId,
     p_title: entity.title,
@@ -205,6 +235,55 @@ export async function writeV3Commitment(client: CommandClient, commitment: Commi
     p_idempotency_key: idempotencyKey,
   })
   throwIfError(result)
+}
+
+export async function writeV3Capture(
+  client: CommandClient,
+  entity: Entity,
+  commitment: Commitment,
+  idempotencyKey: string,
+): Promise<void> {
+  const result = await client.rpc('write_v3_capture', {
+    p_entity_id: entity.id,
+    p_entity_type_id: entity.entityTypeId,
+    p_title: entity.title,
+    p_fields: entity.fields as never,
+    p_schema_version: entity.schemaVersion,
+    p_commitment_id: commitment.id,
+    p_commitment_kind: commitment.kind,
+    p_commitment_action: commitment.action,
+    p_due_on: commitment.dueOn,
+    p_idempotency_key: idempotencyKey,
+  })
+  throwIfError(result)
+}
+
+function mapRemoteDueItem(item: {
+  commitment_id: string
+  entity_id: string
+  entity_type_id: string
+  type_key: string
+  entity_title: string
+  kind: string
+  action: string
+  due_on: string
+  state: string
+  origin_source: string
+  due_status: string
+}): RemoteDueItem {
+  return {
+    commitmentId: item.commitment_id,
+    entityId: item.entity_id,
+    entityTypeId: item.entity_type_id,
+    typeKey: item.type_key,
+    entityTitle: item.entity_title,
+    kind: item.kind,
+    action: item.action,
+    dueOn: item.due_on,
+    state: item.state,
+    originSource: item.origin_source,
+    dueStatus: item.due_status,
+  }
 }
 
 export async function savePersonRow(client: CommandClient, person: Person, userId: string): Promise<void> {

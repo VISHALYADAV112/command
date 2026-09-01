@@ -1097,6 +1097,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "v3_legacy_commitment_map_commitment_fk"
+            columns: ["user_id", "commitment_id"]
+            isOneToOne: true
+            referencedRelation: "commitments"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
             foreignKeyName: "v3_legacy_commitment_map_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -1128,6 +1135,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "v3_legacy_entity_map_entity_fk"
+            columns: ["user_id", "entity_id"]
+            isOneToOne: true
+            referencedRelation: "entities"
+            referencedColumns: ["user_id", "id"]
+          },
           {
             foreignKeyName: "v3_legacy_entity_map_user_id_fkey"
             columns: ["user_id"]
@@ -1309,6 +1323,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      write_v3_capture: {
+        Args: {
+          p_commitment_action: string
+          p_commitment_id: string
+          p_commitment_kind: string
+          p_due_on: string
+          p_entity_id: string
+          p_entity_type_id: string
+          p_fields: Json
+          p_idempotency_key: string
+          p_schema_version: number
+          p_title: string
+        }
+        Returns: Json
+      }
       write_v3_commitment: {
         Args: {
           p_action: string
@@ -1324,6 +1353,18 @@ export type Database = {
         Returns: Json
       }
       write_v3_entity: {
+        Args: {
+          p_archived_at: string
+          p_entity_type_id: string
+          p_fields: Json
+          p_id: string
+          p_idempotency_key: string
+          p_schema_version: number
+          p_title: string
+        }
+        Returns: Json
+      }
+      write_v3_entity_with_outcome: {
         Args: {
           p_archived_at: string
           p_entity_type_id: string

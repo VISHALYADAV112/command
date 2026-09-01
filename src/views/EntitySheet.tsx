@@ -55,6 +55,7 @@ export function EntitySheet({
     if (draft.addCommitment && (!draft.commitmentKind || !draft.commitmentDueOn || !draft.commitmentAction.trim())) {
       return setError('A kind, action, and due date are required for the first commitment.')
     }
+    const now = new Date().toISOString()
     const entity: Entity = {
       id: existing?.id ?? uid(),
       entityTypeId: activeType.id,
@@ -62,6 +63,8 @@ export function EntitySheet({
       fields: draft.fields,
       schemaVersion: activeType.schemaVersion,
       archivedAt: existing?.archivedAt ?? null,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
     }
     const firstCommitment = draft.addCommitment ? {
       id: uid(), entityId: entity.id, kind: draft.commitmentKind as Commitment['kind'],

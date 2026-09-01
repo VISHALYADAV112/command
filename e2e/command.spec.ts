@@ -79,6 +79,21 @@ test('keeps the Today priority, weekly outcomes, and primary action visible at 3
   await expectNoHorizontalOverflow(page)
 })
 
+test('supports common phone, tablet, and desktop Gazette widths', async ({ page }) => {
+  for (const width of [390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expectNoHorizontalOverflow(page)
+    await expect(page.locator('.view-nav')).toHaveCSS('position', width <= 760 ? 'fixed' : 'static')
+  }
+})
+
+test('uses the full Gazette navigation rail on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const nav = page.locator('.view-nav')
+  await expect(nav.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(nav).toHaveCSS('position', 'static')
+})
+
 test('keeps every Phase 5 route inside the approved narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 844 })
   for (const route of ['/#/', '/#/due', '/#/t/application', '/#/i/00000000-0000-4000-8000-000000000301']) {
@@ -110,6 +125,30 @@ test('retains long captured values without horizontal overflow', async ({ page }
   await dialog.getByLabel('Title').fill('x'.repeat(200))
   await dialog.getByLabel(/Tag/).selectOption('idea')
   await dialog.getByLabel(/Status/).selectOption('captured')
+  await dialog.getByLabel(/Problem/).fill('Long values remain inside the Gazette sheet without creating a second scroll axis. '.repeat(30))
   await dialog.getByRole('button', { name: 'Capture record' }).click()
+  await expectNoHorizontalOverflow(page)
+})
+
+test('keeps a large dynamic type registry usable at 380px', async ({ page }) => {
+  await page.waitForFunction(() => localStorage.getItem('command.prototype.v3') !== null)
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('command.prototype.v3')
+    if (!raw) throw new Error('Demo cache was not created')
+    const envelope = JSON.parse(raw)
+    const template = envelope.data.entityTypes[4]
+    envelope.data.entityTypes.push(...Array.from({ length: 20 }, (_, index) => ({
+      ...template,
+      id: crypto.randomUUID(),
+      typeKey: `custom_${index}`,
+      singularName: `Custom record ${index}`,
+      pluralName: `Custom records ${index}`,
+    })))
+    localStorage.setItem('command.prototype.v3', JSON.stringify(envelope))
+  })
+  await page.setViewportSize({ width: 380, height: 844 })
+  await page.reload()
+  await page.goto('/#/t/application')
+  await expect(page.getByLabel('Browse type').locator('option')).toHaveCount(25)
   await expectNoHorizontalOverflow(page)
 })
