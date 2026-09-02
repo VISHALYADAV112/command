@@ -2,8 +2,9 @@ import type { CommandData, Commitment, Settings } from '../types'
 import { compactDuration } from '../domain'
 import { EmptyState, Icon } from '../ui'
 import { dueItems, relativeDueLabel, threeFloorStatus, weeklyOutcomeProgress } from '../v3Selectors'
+import { pendingProposalCount } from './AgentInboxSheet'
 
-export function TodayView({ data, settings, today, onLog, onCapture, onOutcome, onOpenItem }: {
+export function TodayView({ data, settings, today, onLog, onCapture, onOutcome, onOpenItem, onOpenAgentInbox }: {
   data: CommandData
   settings: Settings
   today: Date
@@ -11,16 +12,18 @@ export function TodayView({ data, settings, today, onLog, onCapture, onOutcome, 
   onCapture: () => void
   onOutcome: (commitment: Commitment) => void
   onOpenItem: (id: string) => void
+  onOpenAgentInbox?: () => void
 }) {
   const floors = threeFloorStatus(data, settings, today)
   const overdue = dueItems(data, today, 'overdue')
   const queue = dueItems(data, today).slice(0, 5)
   const weekly = weeklyOutcomeProgress(data, today)
   const allFloorsMet = floors.every((floor) => floor.met)
+  const pendingAgents = pendingProposalCount(data)
 
   return <main>
     <section className="today-zone v3-today">
-      <p className="today-kicker">Today · Asia/Kolkata</p>
+      <div className="today-topline"><p className="today-kicker">Today · Asia/Kolkata</p>{pendingAgents > 0 && onOpenAgentInbox && <button className="agent-inbox-indicator" type="button" onClick={onOpenAgentInbox}>Agent inbox · {pendingAgents}</button>}</div>
       {overdue.length > 0 && <div className="urgent-lead">
         <span className="eyebrow">Overdue exception</span>
         <strong>{overdue[0].commitment.action}</strong>

@@ -15,14 +15,14 @@ select ok(
 select is(
   (select count(*)::integer from pg_policies
     where schemaname = 'public' and tablename = 'activity_events'),
-  1,
-  'activity events expose only an owner-select policy'
+  2,
+  'activity events expose owner-select and direct-OAuth isolation policies'
 );
 select is(
   (select count(*)::integer from pg_policies
     where schemaname = 'public' and tablename = 'agent_proposals'),
-  1,
-  'agent proposals expose only an owner-select policy'
+  2,
+  'agent proposals expose owner-select and direct-OAuth isolation policies'
 );
 select ok(
   has_table_privilege('authenticated', 'public.activity_events', 'select'),

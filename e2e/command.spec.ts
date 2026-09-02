@@ -152,3 +152,32 @@ test('keeps a large dynamic type registry usable at 380px', async ({ page }) => 
   await expect(page.getByLabel('Browse type').locator('option')).toHaveCount(25)
   await expectNoHorizontalOverflow(page)
 })
+
+test('keeps the Agent inbox review gate usable at 380px', async ({ page }) => {
+  await page.waitForFunction(() => localStorage.getItem('command.prototype.v3') !== null)
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('command.prototype.v3')
+    if (!raw) throw new Error('Demo cache was not created')
+    const envelope = JSON.parse(raw)
+    const note = envelope.data.entityTypes.find((type: { typeKey: string }) => type.typeKey === 'note')
+    envelope.data.agentProposals = [{
+      id: crypto.randomUUID(), clientId: 'visual-client', operation: 'capture', entityTypeId: note.id,
+      targetEntityId: null, targetCommitmentId: null, targetUpdatedAt: null,
+      proposedEntity: { id: crypto.randomUUID(), title: 'Review this agent note', fields: { tag: 'idea', status: 'captured' }, schema_version: 2 },
+      proposedCommitment: null, state: 'pending', decisionNote: null,
+      resultEntityId: null, resultCommitmentId: null, resultEventId: null,
+      idempotencyKey: 'visual-proposal-001', expiresAt: '2099-09-09T00:00:00.000Z',
+      decidedAt: null, createdAt: '2026-09-02T05:00:00.000Z',
+    }]
+    localStorage.setItem('command.prototype.v3', JSON.stringify(envelope))
+  })
+  await page.setViewportSize({ width: 380, height: 844 })
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Agent inbox · 1' })).toBeInViewport()
+  await expect(page.getByRole('group', { name: 'Weekly outcome progress' })).toBeInViewport()
+  await expect(page.getByRole('button', { name: /log today|review today/i })).toBeInViewport()
+  await page.getByRole('button', { name: 'Agent inbox · 1' }).click()
+  await expect(page.getByRole('dialog', { name: 'Agent inbox' })).toBeVisible()
+  await expect(page.getByText('Review this agent note')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+})

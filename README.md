@@ -50,9 +50,10 @@ the source of truth when older specifications or prototypes conflict.
   connect/disconnect, live "Today" strip of events; OAuth refresh tokens stored
   AES-256-GCM encrypted in the database with the key held only server-side.
 - CSP headers, service-worker update prompt, JSON/CSV export, PWA install.
-- Remote MCP access through Supabase OAuth 2.1. Production retains the existing
-  gateway until cutover; Phase 6 is replacing its hardcoded surface with five
-  generic registry-aware tools and approval-gated proposals.
+- Remote MCP access through Supabase OAuth 2.1. The Phase 6 source now provides
+  five generic registry-aware tools, narrow read/write/people permissions, safe
+  bounded queries, and an approval-gated Agent inbox. Production retains the
+  compatible Phase 4 gateway until the coordinated cutover.
 
 ## Connect an AI client
 
@@ -63,9 +64,14 @@ https://<project-ref>.supabase.co/functions/v1/command-mcp
 ```
 
 The client discovers Supabase OAuth, opens Command's consent screen, and asks
-you to sign in. No model API key is required. Access is limited by the same
-Postgres RLS policies as the app, writes are idempotent, and tool calls are
-recorded in a private audit log. Clients that support dynamic OAuth client
+you to sign in. No model API key is required. Command grants are separate from
+identity scopes: `command:types:read`, `command:data:read`, and
+`command:proposals:write`; person records additionally require
+`command:data:people`. Reads remain owner-scoped, all writes initially create
+idempotent proposals for explicit review, and tool calls are recorded in a
+private audit log. Connected-client tokens cannot call PostgREST, first-party
+mutation RPCs, or the Calendar function directly; access stays behind the MCP
+permission and proposal boundaries. Clients that support dynamic OAuth client
 registration need only the URL above.
 
 ## Data core
@@ -89,6 +95,11 @@ transactional writes, and bounded derived reads
 20–24. built-in schemas, idempotent legacy backfill, compatibility reports,
 and deferred ownership/Calendar corrections
 25. Phase 5 outcome provenance and atomic entity-plus-commitment capture
+26–27. Phase 6 current-target guards for agent proposal creation and approval,
+with stale rejection kept available
+28–32. owner/client MCP application permissions, first-party-only grant
+management, direct OAuth database isolation, and guarded UI mutation RPCs,
+including the atomic capture/outcome paths
 
 The `google-calendar` edge function handles the PKCE flow, idempotent event
 writes, token revocation/refresh, request throttling, and request-scoped CORS;

@@ -1,9 +1,9 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 2.5
+**Plan version:** 2.6
 **Created:** 2026-08-30
-**Last updated:** 2026-09-01
+**Last updated:** 2026-09-02
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
 
 ---
@@ -59,14 +59,14 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 3. Backfill and prove data compatibility | **Complete** | Every existing row accounted for and export verified |
 | 4. Build the responsive Gazette shell | **Complete** | Shared shell works at 380px and desktop widths |
 | 5. Build the core v3 product workflows | **Complete** | Today, Due, Browse, Item, and overlays pass the corrected implementation gate |
-| 6. Rebuild MCP and agent review | **In progress** | Dynamic tools, scopes, approval, and provenance pass |
-| 7. Add review, readiness, export, and integrations | **Not started** | Week, Run, settings, export, and Calendar rules work |
+| 6. Rebuild MCP and agent review | **Complete** | Dynamic tools, permissions, approval, and provenance pass |
+| 7. Add review, readiness, export, and integrations | **In progress** | Week, Run, settings, export, and Calendar rules work |
 | 8. Cut over, harden, and retire legacy paths | **Not started** | Production smoke tests and final completion gate pass |
 
-**Active phase:** Phase 6 — Rebuild MCP and agent review.
-**Current blocker:** None. Phase 5 live-mode smoke testing remains an explicit Phase 8 cutover task, not a blocker to local Phase 6 implementation.
-**Repository state:** Phases 0–5 are committed and pushed to GitHub `main` as `a3552ac`, followed by `e1b6676`, which fixes CI to install the Chromium browser configured for Playwright. The Phase 5 frontend reached Vercel before the separately authorised database cutover and failed after authentication because production did not contain `public.entity_types`. On 2026-09-01 the public production alias was restored to the compatible Phase 4 deployment from commit `e2d5d15`; it resolves to deployment `dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` and returns HTTP 200. GitHub `main` remains at `e1b6676`. Work continues on the local `command-v3` branch so further v3 commits cannot trigger the production deployment. The corrected Phase 5 implementation and the preserved first Phase 6 MCP slice are local and not deployed. No production database migration, Supabase function deployment, or production-data change was performed.
-**Next slice:** Resume Phase 6 by validating generic MCP write payloads against current registry/commitment rules, then enforce per-client scopes before building the Agent inbox.
+**Active phase:** Phase 7 — Add review, readiness, export, and integrations.
+**Current blocker:** None. Authenticated production smoke testing remains an explicit Phase 8 cutover task, not a blocker to local Phase 7 implementation.
+**Repository state:** GitHub `main` remains at `e1b6676`, while the public Vercel alias remains pinned to the compatible Phase 4 deployment from `e2d5d15` described in `docs/deployment.md`. The corrected Phase 5 implementation and Phase 6 work live only on the isolated `command-v3` branch and are not deployed. Phase 6 added append-only migrations `0026`–`0032`; they were applied only to the local Supabase environment. No production database migration, Supabase function deployment, production frontend change, or production-data change was performed.
+**Next slice:** Implement Week from the existing bounded `get_v3_week` contract: verify Monday–Sunday `Asia/Kolkata` boundaries, three practice totals, weekly 15/2 outcomes, future days as pending, proposal activity, and commitment outcomes before beginning Run-marker formulas.
 
 ---
 
@@ -141,6 +141,7 @@ Managing work becomes simpler: instead of remembering which screen contains a du
 - [x] **Refresh model:** Refresh on visibility change first. Do not introduce realtime subscriptions yet.
 - [x] **State architecture:** Use canonical entities and commitments plus immutable activity events; do not implement full event sourcing.
 - [x] **Agent proposals:** Store unapproved agent changes in `agent_proposals` and apply approved changes transactionally.
+- [x] **MCP permissions:** Use `command:types:read`, `command:data:read`, and `command:proposals:write` as separate Command application grants keyed by owner and OAuth client. Access to person records additionally requires `command:data:people`; broad reads omit people without it. Supabase's supported identity scopes such as `openid` and `email` grant no Command tool access. The proposal-write grant creates reviewable proposals only and does not grant direct canonical or Calendar writes.
 
 ### 3.3 Superseded design material
 
@@ -436,7 +437,7 @@ This section is the user-visible and operational feature checklist. A checked fe
 - [x] Record Outcome from a queue row.
 - [x] Open the owning Item.
 - [x] Global daily Log action.
-- [ ] Agent inbox indicator only when proposals are pending.
+- [x] Agent inbox indicator only when proposals are pending.
 - [x] Calm nothing-due state.
 - [ ] Seven-day execution strip only if it does not harm the first-viewport goal.
 
@@ -509,7 +510,7 @@ This section is the user-visible and operational feature checklist. A checked fe
 - [ ] Configure allowed commitment kinds and defaults.
 - [ ] Disable a type without deleting records.
 - [ ] Google Calendar connect, disconnect, and last-sync state.
-- [ ] Connected MCP clients, scopes, last activity, and revocation.
+- [ ] Connected MCP clients, application permissions, last activity, and revocation.
 - [ ] Agent audit/provenance access.
 - [ ] JSON export.
 - [ ] Per-type CSV export.
@@ -531,24 +532,24 @@ This section is the user-visible and operational feature checklist. A checked fe
 ### 8.9 Agent and MCP
 
 - [x] `command_describe_types` returns allowed types, schemas, and commitment kinds.
-- [ ] `command_capture` creates a validated pending proposal.
-- [ ] `command_complete` proposes or applies an outcome according to client trust policy.
-- [ ] `command_schedule` proposes or applies a schedule change according to client trust policy.
-- [ ] `command_query` supports constrained type, due-window, and text filters.
-- [ ] No arbitrary SQL or unbounded query language.
-- [ ] Server validates against the current registry schema.
-- [ ] Idempotent retries return the existing proposal/result and never overwrite UI edits.
-- [ ] Read and write scopes are separate and narrow.
-- [ ] Sensitive people fields are excluded from broad/default query scopes.
-- [ ] Tool calls remain rate-limited and privately audited.
-- [ ] Pending proposals never appear in Browse or Due.
-- [ ] Approve, edit-and-approve, reject, and expire paths work.
-- [ ] Calendar/external side effects require their own explicit scope and review policy.
+- [x] `command_capture` creates a validated pending proposal.
+- [x] `command_complete` proposes an approval-gated outcome under the initial trust policy.
+- [x] `command_schedule` proposes an approval-gated schedule change under the initial trust policy.
+- [x] `command_query` supports constrained type, due-window, and text filters.
+- [x] No arbitrary SQL or unbounded query language.
+- [x] Server validates against the current registry schema.
+- [x] Idempotent retries return the existing proposal/result and never overwrite UI edits.
+- [x] Read and write application permissions are separate and narrow.
+- [x] Sensitive people records are excluded without the additional people-data permission.
+- [x] Tool calls remain rate-limited and privately audited.
+- [x] Pending proposals never appear in Browse or Due.
+- [x] Approve, edit-and-approve, reject, and expire paths work.
+- [x] Calendar/external side effects remain outside MCP and require a first-party action.
 
 ### 8.10 Platform behaviour
 
 - [ ] Google owner-only authentication.
-- [ ] OAuth consent for MCP clients.
+- [x] OAuth consent for MCP clients.
 - [ ] Google Calendar token encryption and revocation.
 - [ ] PWA install and service worker update prompt.
 - [ ] Update prompt never clears an active form.
@@ -572,7 +573,7 @@ The source proposal and prototypes do not yet define the following well enough t
 - Settings Export appears in the IA but not v12.
 - The IA lists four overlays, while Item requires edit and schedule interactions too.
 - Mobile Browse currently points to `application`; it does not define how the user chooses among dynamic types.
-- The transactional edit-and-approve data contract is defined; its review UI and draft interaction still need Phase 6 design.
+- The transactional edit-and-approve contract and Agent inbox review UI are implemented; proposals are bounded to 50 recent records and stale/expired proposals cannot enter canonical views.
 - Outcome vocabulary and allowed outcomes per commitment kind are not defined.
 - Draft lifetime, expiry, and cross-device behaviour are not defined.
 - Archive/search behaviour for archived records is not defined.
@@ -586,18 +587,18 @@ The source proposal and prototypes do not yet define the following well enough t
 - Final Run filters and targets are deliberately deferred to Phase 7; they must use only canonical entities, commitments, and activity events and cannot change the schema or routes.
 - Changing floor and weekly targets intentionally reinterprets derived historical status using current settings; raw logs and events remain unchanged.
 - Calendar link migration from domain-specific events to commitments is unspecified.
-- Due and readiness reads are bounded in Phase 2; Browse search indexing and pagination remain Phase 5 work.
+- Due and readiness reads are bounded; Browse uses bounded server paging and registry-defined sorting from Phase 5.
 - Registry deactivation rules and archived-search defaults remain unspecified; field-key and field-change rules are resolved in Section 3.2.
 
 ### Security gaps
 
-- Exact MCP scopes and default grants are not defined.
+- Exact MCP permissions and default grants are resolved by PLAN-025. Command privileges are never inferred from Supabase identity scopes, and people data requires its additional data-class grant.
 - The storage and administration model for narrowly trusted client/operation/entity-type combinations remains to be defined; the approval boundary is fixed in Section 3.2.
 - Registry, entity, activity, and proposal JSON depth/count/size limits are enforced server-side.
 - Registry-provided labels/options must be rendered as text, never trusted HTML.
 - Same-user referential integrity is enforced for types, entities, commitments, events, proposal targets, and proposal results.
 - Proposal approvals use a row lock, target-version precondition, and a single-winner transaction.
-- Authenticated canonical writes use security-definer RPCs; users cannot directly insert events or bypass transactional provenance.
+- Authenticated canonical writes use security-definer RPCs; users cannot directly insert events or bypass transactional provenance. Connected-client OAuth tokens are denied direct table, UI-RPC, and Calendar access and must use the permission-gated MCP edge boundary.
 
 ### Design-system gaps
 
@@ -606,7 +607,7 @@ The source proposal and prototypes do not yet define the following well enough t
 - Night-edition colours and contrast have not been accessibility-tested.
 - Brahmi glyph use is decorative in places despite the old brief prohibiting script as texture.
 - Typography loading, offline font behaviour, and final licensed font assets need confirmation.
-- Long titles, long select values, large numbers, and empty data have not been stress-tested.
+- Long titles, long select values, large registries, and empty data have responsive regression coverage.
 
 ### Operational gaps
 
@@ -614,7 +615,7 @@ The source proposal and prototypes do not yet define the following well enough t
 - No v2-to-v3 backup and verification report format exists.
 - No decision has been made about a maintenance window versus compatibility writes.
 - Old bookmarks need a redirect/mapping policy.
-- Documentation source-of-truth is inconsistent: current README says Vercel while older design and `AGENTS.md` still mention GitHub Pages.
+- README, `AGENTS.md`, and deployment documentation consistently describe the Vercel frontend, Supabase backend, isolated v3 branch, and controlled Phase 8 cutover.
 - The original 1–2 week estimate does not include a safe migration, responsive implementation, and full verification.
 
 Every item above must be resolved, explicitly deferred, or turned into a checked task before Phase 8 can complete.
@@ -635,7 +636,7 @@ Tasks:
 - [x] Confirm the canonical-state-plus-audit architecture or restore full event sourcing with a complete projection design.
 - [x] Define the job-hunt weekly unit and migration treatment.
 - [x] Bound Run marker sources and trend rules; deliberately defer final filters and targets to Phase 7 without permitting schema or route changes.
-- [x] Define MCP scope and approval policy.
+- [x] Define MCP permission and approval policy.
 - [x] Declare which older design/spec sections are superseded.
 - [x] Update this document to version 1.0 and mark it Approved.
 
@@ -824,30 +825,47 @@ Exit gate:
 
 ### Phase 6 — Rebuild MCP and agent review
 
-**Status:** In progress
+**Status:** Complete
 
 Tasks:
 
 - [x] Replace seven hardcoded tools with the approved five generic tools.
 - [x] Implement registry discovery.
-- [ ] Validate all write payloads server-side against current schema and commitment rules.
-- [ ] Route untrusted writes into `agent_proposals`.
-- [ ] Enforce per-client read/write/data-class scopes.
-- [ ] Add strict query filters, limits, and safe error messages.
-- [ ] Make capture, complete, and schedule retries idempotent.
-- [ ] Build Agent inbox with approve, edit-and-approve, reject, and expired states.
-- [ ] Show source/client provenance on Item.
-- [ ] Refresh the browser after proposal decisions and external writes.
-- [ ] Preserve OAuth discovery, consent, rate limiting, and private audit.
-- [ ] Add tool-contract, repository, authorization, idempotency, and injection-resistance tests.
+- [x] Validate all write payloads server-side against current schema and commitment rules.
+- [x] Route untrusted writes into `agent_proposals`.
+- [x] Enforce per-client read/write/data-class application permissions.
+- [x] Add strict query filters, limits, and safe error messages.
+- [x] Make capture, complete, and schedule retries idempotent.
+- [x] Build Agent inbox with approve, edit-and-approve, reject, and expired states.
+- [x] Show source/client provenance on Item.
+- [x] Refresh the browser after proposal decisions and external writes.
+- [x] Preserve OAuth discovery, consent, rate limiting, and private audit.
+- [x] Add tool-contract, repository, authorization, idempotency, and injection-resistance tests.
 
 Exit gate:
 
-- [ ] A newly registered data-only type is discoverable and capturable through MCP without redeployment, while no unapproved proposal appears in primary views.
+- [x] A newly registered data-only type is discoverable and capturable through MCP without redeployment, while no unapproved proposal appears in primary views.
+
+Progress verified on 2026-09-02:
+
+- Replaced the MCP surface with the five generic tools and made discovery, capture validation, commitment validation, bounded querying, safe errors, rate limiting, and private audit registry-aware.
+- All MCP writes create owner/client/idempotency-keyed proposals. Retries return the original proposal before changed registry or target state can reject the replay; canonical changes occur only through the transactional owner review RPC.
+- Added the Agent inbox with pending-only Today indicator, approve, edit-and-approve, reject, derived expiry, bounded recent history, and post-decision refresh. Approved changes retain MCP source/client provenance on Item; pending records never enter canonical primary views.
+- Added owner/client application permissions for type read, data read, proposal write, and additional person data. Supabase OAuth identity scopes grant no Command permission.
+- Added defense in depth for Supabase OAuth's authenticated database tokens: direct PostgREST access, permission self-escalation, first-party mutation RPCs, and Calendar actions are denied. The MCP Edge Function uses service-only reads with explicit owner/client filters.
+- Added append-only migrations `0026`–`0032` for current-target proposal guards, stale rejection, permission storage and management, direct OAuth database isolation, service-only Due reads, and explicit guards on every first-party UI mutation RPC. Generated database types were refreshed.
+- Targeted MCP, authorization, consent, Agent inbox, Calendar-token, and API coverage: 7 files / 33 tests passed.
+- `npm test`: 18 files / 77 tests passed.
+- `npx tsc -b`: passed with no errors.
+- `npm run build`: passed; Vite production bundle completed with the existing non-blocking chunk-size warning.
+- `npm run test:e2e`: 13/13 browser tests passed, including the 380px Agent inbox and first-viewport gate.
+- `npm run test:db`: 11 files / 329 assertions passed.
+- `npx supabase db lint --local --level warning`: no schema errors or warnings.
+- Blockers: none. Production deployment and live smoke testing remain Phase 8 work.
 
 ### Phase 7 — Add review, readiness, export, and integrations
 
-**Status:** Not started
+**Status:** In progress
 
 Tasks:
 
@@ -856,7 +874,7 @@ Tasks:
 - [ ] Port `applyRecall` into the behaviour-plugin contract without changing its tested schedule.
 - [ ] Implement plugin-scheduled follow-on commitments through Outcome.
 - [ ] Implement Targets and Type registry Settings.
-- [ ] Implement Integrations, scopes, clients, revocation, and audit access.
+- [ ] Implement Integrations, permissions, clients, revocation, and audit access.
 - [ ] Implement dynamic JSON and per-type CSV export.
 - [ ] Generalise Calendar event mapping from applications/projects to approved commitment kinds.
 - [ ] Preserve Calendar idempotency, unlinking, refresh, and encrypted tokens.
@@ -959,7 +977,7 @@ npm run build
 - Owner Google sign-in and sign-out.
 - Session expiry and re-authentication.
 - Calendar connect, refresh, push, unlink, and disconnect.
-- MCP OAuth consent, scope display, and revocation.
+- MCP OAuth consent, application-permission display, and revocation.
 - Agent proposal approval/rejection.
 - Visibility refresh after an MCP write.
 - Offline cached read and refused write with retained draft.
@@ -1006,7 +1024,7 @@ Command v3 is complete only when all of the following are true:
 - [ ] Today is fast and legible at 380px with no horizontal overflow.
 - [ ] Every route has loading, empty, error, stale, and offline behaviour.
 - [ ] Accessibility requirements pass keyboard and screen-reader-oriented review.
-- [ ] RLS and scope tests prevent cross-user or over-broad access.
+- [x] RLS and permission tests prevent cross-user, direct-OAuth, or over-broad access.
 - [ ] `npm test`, `npx tsc -b`, and `npm run build` pass.
 - [ ] Required E2E, database, edge, migration, and production smoke tests pass.
 - [ ] README, AGENTS, architecture docs, and deployment instructions describe reality.
@@ -1044,6 +1062,8 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2026-09-01 | PLAN-022 | Restore the production frontend alias to the Phase 4 deployment until the Phase 8 database cutover | Phase 5 requires v3 tables that were not yet present in production, so authenticated loading failed on `public.entity_types` | Preserve Phase 5 and Phase 6 source work without exposing it at the public alias or applying production migrations early |
 | 2026-09-01 | PLAN-023 | Repair the Phase 5 implementation gate before resuming Phase 6 and isolate remaining v3 work from the production branch | Audit found unwired screen loaders, incomplete pagination/sort semantics, inconsistent weekly metrics, a split capture workflow, and lost regression coverage | Continue on `command-v3`; production stays on Phase 4 and live v3 verification remains a Phase 8 gate |
 | 2026-09-01 | PLAN-024 | Treat local production-contract verification as the Phase 5 implementation gate and reserve authenticated production smoke testing for Phase 8 | Requiring live v3 reads before the planned schema/backfill cutover creates an impossible and unsafe phase dependency | Phase 5 may close after local application/database/browser gates pass; the public alias stays on Phase 4 until the coordinated cutover |
+| 2026-09-02 | PLAN-025 | Split MCP authorization into owner/client application grants for registry read, data read, proposal write, and additional people data | Supabase currently supports only OIDC identity scopes and explicitly does not support custom resource scopes; Command still needs independent, honest permissions | Store selected grants in an RLS-protected Command row during consent; missing rows deny all tools, broad reads omit people without `command:data:people`, all writes remain approval-gated proposals, and Calendar permission stays separate |
+| 2026-09-02 | PLAN-026 | Deny Supabase OAuth-client tokens direct access to Command tables, first-party mutation RPCs, and Calendar; let the MCP edge read only through explicitly owner-scoped service queries | Supabase OAuth access tokens use the normal `authenticated` database role, so tool-level permissions alone would otherwise be bypassable through PostgREST or existing UI RPCs | Restrictive RLS and guarded RPCs keep the five-tool MCP boundary authoritative; application permission rows cannot be self-escalated and Calendar stays first-party only |
 
 ---
 
@@ -1068,3 +1088,4 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2.3 | 2026-09-01 | Corrected the Phase 5 live-mode claim after production exposed the missing `public.entity_types` cutover dependency; restored the public Vercel alias to the compatible Phase 4 deployment from `e2d5d15` and left production database/functions/data unchanged |
 | 2.4 | 2026-09-01 | Reopened Phase 5 for an evidence-backed correction pass, paused the partial Phase 6 slice, and moved ongoing work to `command-v3` so production remains pinned safely to Phase 4 |
 | 2.5 | 2026-09-01 | Completed the Phase 5 correction pass with wired paged reads, timestamp sorting, event-consistent weekly outcomes, transactional capture, restored responsive/large-data coverage, corrected deployment documentation, and passing unit/type/build/browser/database verification; resumed Phase 6 |
+| 2.6 | 2026-09-02 | Completed Phase 6 with five registry-aware MCP tools, schema-valid idempotent proposals, owner/client application permissions, OAuth database/RPC/Calendar isolation, Agent inbox review, source/client provenance, visibility and post-decision refresh, append-only migrations `0026`–`0032`, and passing unit/type/build/browser/database/lint verification; Phase 7 Week work is next |

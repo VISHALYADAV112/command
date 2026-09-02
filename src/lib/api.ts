@@ -1,11 +1,14 @@
 import type {
-  ActivityEvent, CommandData, Commitment, DailyLog, Entity, EntityType, Idea,
+  ActivityEvent, AgentProposal, CommandData, Commitment, DailyLog, Entity, EntityType, Idea,
   JobApplication, LearningItem, Person, Project, Settings,
 } from '../types'
 import type { CommandClient } from './supabase'
+import {
+  MCP_PERMISSION, type McpPermission,
+} from '../../supabase/functions/_shared/mcp-permissions'
 import { settings as defaultSettings } from '../domain'
 import {
-  applicationToDb, ideaToDb, learningToDb, logToDb, mapActivityEvent, mapApplication,
+  applicationToDb, ideaToDb, learningToDb, logToDb, mapActivityEvent, mapAgentProposal, mapApplication,
   mapCommitment, mapEntity, mapEntityType, mapIdea, mapLearning, mapLog, mapPerson,
   mapProject, mapSettings, personToDb, projectToDb, settingsToDb,
 } from './mappers'
@@ -86,11 +89,12 @@ export function exportCsv(kind: CsvTable, data: CommandData): string {
 }
 
 export async function loadRemoteData(client: CommandClient): Promise<CommandData> {
-  const [entityTypes, entities, commitments, activityEvents, logs, learning, people, applications, projects, ideas] = await Promise.all([
+  const [entityTypes, entities, commitments, activityEvents, agentProposals, logs, learning, people, applications, projects, ideas] = await Promise.all([
     client.from('entity_types').select('*').order('type_key').order('id').limit(REMOTE_READ_LIMIT),
     client.from('entities').select('*').order('updated_at', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
     client.from('commitments').select('*').order('due_on').order('id').limit(REMOTE_READ_LIMIT),
     client.from('activity_events').select('*').order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(REMOTE_READ_LIMIT),
+    client.from('agent_proposals').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(REMOTE_READ_LIMIT),
     client.from('daily_logs').select('*').order('day', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
     client.from('learning_items').select('*').order('next_review_on', { nullsFirst: false }).order('id').limit(REMOTE_READ_LIMIT),
     client.from('people').select('*').order('name').order('id').limit(REMOTE_READ_LIMIT),
@@ -98,13 +102,14 @@ export async function loadRemoteData(client: CommandClient): Promise<CommandData
     client.from('projects').select('*').order('updated_at', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
     client.from('ideas').select('*').order('updated_at', { ascending: false }).order('id').limit(REMOTE_READ_LIMIT),
   ])
-  ;[entityTypes, entities, commitments, activityEvents, logs, learning, people, applications, projects, ideas].forEach(throwIfError)
+  ;[entityTypes, entities, commitments, activityEvents, agentProposals, logs, learning, people, applications, projects, ideas].forEach(throwIfError)
   return {
     version: 3,
     entityTypes: (entityTypes.data ?? []).map(mapEntityType),
     entities: (entities.data ?? []).map(mapEntity),
     commitments: (commitments.data ?? []).map(mapCommitment),
     activityEvents: (activityEvents.data ?? []).map(mapActivityEvent),
+    agentProposals: (agentProposals.data ?? []).map(mapAgentProposal),
     legacy: {
       logs: (logs.data ?? []).map(mapLog),
       learning: (learning.data ?? []).map(mapLearning),
@@ -114,6 +119,77 @@ export async function loadRemoteData(client: CommandClient): Promise<CommandData
       ideas: (ideas.data ?? []).map(mapIdea),
     },
   }
+}
+
+export interface AgentProposalDecision {
+  proposalId: string
+  decision: 'approve' | 'reject'
+  entityPayload?: Record<string, unknown> | null
+  commitmentPayload?: Record<string, unknown> | null
+  decisionNote?: string | null
+}
+
+export async function decideAgentProposal(client: CommandClient, decision: AgentProposalDecision): Promise<void> {
+  const result = await client.rpc('decide_agent_proposal', {
+    p_proposal_id: decision.proposalId,
+    p_decision: decision.decision,
+    ...(decision.entityPayload !== undefined ? { p_entity_payload: decision.entityPayload as never } : {}),
+    ...(decision.commitmentPayload !== undefined ? { p_commitment_payload: decision.commitmentPayload as never } : {}),
+    ...(decision.decisionNote != null ? { p_decision_note: decision.decisionNote } : {}),
+  })
+  throwIfError(result)
+}
+
+export interface McpClientPermissionGrant {
+  clientId: string
+  permissions: McpPermission[]
+}
+
+export async function loadMcpClientPermissions(client: CommandClient): Promise<McpClientPermissionGrant[]> {
+  const result = await client.from('mcp_client_permissions')
+    .select('client_id,can_read_types,can_read_data,can_write_proposals,can_access_people')
+    .order('client_id').limit(100)
+  throwIfError(result)
+  return (result.data ?? []).map((row) => ({
+    clientId: row.client_id,
+    permissions: permissionNames(row),
+  }))
+}
+
+export async function saveMcpClientPermissions(
+  client: CommandClient,
+  userId: string,
+  clientId: string,
+  permissions: readonly McpPermission[],
+): Promise<void> {
+  const result = await client.from('mcp_client_permissions').upsert({
+    user_id: userId,
+    client_id: clientId,
+    can_read_types: permissions.includes(MCP_PERMISSION.typesRead),
+    can_read_data: permissions.includes(MCP_PERMISSION.dataRead),
+    can_write_proposals: permissions.includes(MCP_PERMISSION.proposalsWrite),
+    can_access_people: permissions.includes(MCP_PERMISSION.peopleData),
+  })
+  throwIfError(result)
+}
+
+export async function removeMcpClientPermissions(client: CommandClient, clientId: string): Promise<void> {
+  const result = await client.from('mcp_client_permissions').delete().eq('client_id', clientId)
+  throwIfError(result)
+}
+
+function permissionNames(row: {
+  can_read_types: boolean
+  can_read_data: boolean
+  can_write_proposals: boolean
+  can_access_people: boolean
+}): McpPermission[] {
+  return [
+    row.can_read_types ? MCP_PERMISSION.typesRead : null,
+    row.can_read_data ? MCP_PERMISSION.dataRead : null,
+    row.can_write_proposals ? MCP_PERMISSION.proposalsWrite : null,
+    row.can_access_people ? MCP_PERMISSION.peopleData : null,
+  ].filter((permission): permission is McpPermission => permission !== null)
 }
 
 export async function loadV3Registry(client: CommandClient): Promise<EntityType[]> {

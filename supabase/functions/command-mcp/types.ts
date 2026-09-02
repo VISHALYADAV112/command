@@ -1,15 +1,31 @@
-export type CaptureKind = 'idea' | 'learning' | 'project' | 'person' | 'application'
-
 export interface CaptureInput {
-  kind: CaptureKind
+  typeKey: string
   title: string
-  subtitle?: string
-  content?: string
-  nextAction?: string
-  dueOn?: string
-  track?: 'node' | 'dsa' | 'math'
-  sourceUrl?: string
+  fields: Record<string, unknown>
+  schemaVersion: number
   idempotencyKey: string
+}
+
+export interface CompleteInput {
+  entityId: string
+  commitmentId: string
+  outcome: string
+  idempotencyKey: string
+}
+
+export interface ScheduleInput {
+  entityId: string
+  kind: string
+  action: string
+  dueOn: string
+  idempotencyKey: string
+}
+
+export interface QueryInput {
+  typeKey?: string
+  dueWindow?: 'overdue' | 'today' | 'week' | 'all'
+  text?: string
+  limit: number
 }
 
 export interface AuditEntry {
@@ -21,12 +37,11 @@ export interface AuditEntry {
 }
 
 export interface CommandRepository {
-  getToday(): Promise<Record<string, unknown>>
-  getWeek(): Promise<Record<string, unknown>>
-  search(query: string, limit: number): Promise<Record<string, unknown>>
-  listProjects(status?: string): Promise<Record<string, unknown>>
-  listJobs(status?: string): Promise<Record<string, unknown>>
-  getLearningDue(asOf?: string): Promise<Record<string, unknown>>
+  authorize(permission: string): Promise<void>
+  describeTypes(): Promise<Record<string, unknown>>
   capture(input: CaptureInput): Promise<Record<string, unknown>>
+  complete(input: CompleteInput): Promise<Record<string, unknown>>
+  schedule(input: ScheduleInput): Promise<Record<string, unknown>>
+  query(input: QueryInput): Promise<Record<string, unknown>>
   audit(entry: AuditEntry): Promise<void>
 }

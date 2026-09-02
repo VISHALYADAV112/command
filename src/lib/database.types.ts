@@ -818,6 +818,47 @@ export type Database = {
           },
         ]
       }
+      mcp_client_permissions: {
+        Row: {
+          can_access_people: boolean
+          can_read_data: boolean
+          can_read_types: boolean
+          can_write_proposals: boolean
+          client_id: string
+          created_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          can_access_people?: boolean
+          can_read_data?: boolean
+          can_read_types?: boolean
+          can_write_proposals?: boolean
+          client_id: string
+          created_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          can_access_people?: boolean
+          can_read_data?: boolean
+          can_read_types?: boolean
+          can_write_proposals?: boolean
+          client_id?: string
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_client_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       oauth_states: {
         Row: {
           code_verifier: string
@@ -1190,12 +1231,45 @@ export type Database = {
         }
         Returns: Json
       }
+      decide_agent_proposal_first_party_impl: {
+        Args: {
+          p_commitment_payload?: Json
+          p_decision: string
+          p_decision_note?: string
+          p_entity_payload?: Json
+          p_proposal_id: string
+        }
+        Returns: Json
+      }
       get_v3_due: {
         Args: {
           p_day?: string
           p_limit?: number
           p_offset?: number
           p_type_key?: string
+          p_window?: string
+        }
+        Returns: {
+          action: string
+          commitment_id: string
+          due_on: string
+          due_status: string
+          entity_id: string
+          entity_title: string
+          entity_type_id: string
+          kind: string
+          origin_source: string
+          state: string
+          type_key: string
+        }[]
+      }
+      get_v3_due_for_mcp: {
+        Args: {
+          p_day?: string
+          p_limit?: number
+          p_offset?: number
+          p_type_key?: string
+          p_user_id: string
           p_window?: string
         }
         Returns: {
@@ -1338,7 +1412,36 @@ export type Database = {
         }
         Returns: Json
       }
+      write_v3_capture_first_party_impl: {
+        Args: {
+          p_commitment_action: string
+          p_commitment_id: string
+          p_commitment_kind: string
+          p_due_on: string
+          p_entity_id: string
+          p_entity_type_id: string
+          p_fields: Json
+          p_idempotency_key: string
+          p_schema_version: number
+          p_title: string
+        }
+        Returns: Json
+      }
       write_v3_commitment: {
+        Args: {
+          p_action: string
+          p_completed_at: string
+          p_due_on: string
+          p_entity_id: string
+          p_id: string
+          p_idempotency_key: string
+          p_kind: string
+          p_outcome: string
+          p_state: string
+        }
+        Returns: Json
+      }
+      write_v3_commitment_first_party_impl: {
         Args: {
           p_action: string
           p_completed_at: string
@@ -1364,7 +1467,31 @@ export type Database = {
         }
         Returns: Json
       }
+      write_v3_entity_first_party_impl: {
+        Args: {
+          p_archived_at: string
+          p_entity_type_id: string
+          p_fields: Json
+          p_id: string
+          p_idempotency_key: string
+          p_schema_version: number
+          p_title: string
+        }
+        Returns: Json
+      }
       write_v3_entity_with_outcome: {
+        Args: {
+          p_archived_at: string
+          p_entity_type_id: string
+          p_fields: Json
+          p_id: string
+          p_idempotency_key: string
+          p_schema_version: number
+          p_title: string
+        }
+        Returns: Json
+      }
+      write_v3_entity_with_outcome_first_party_impl: {
         Args: {
           p_archived_at: string
           p_entity_type_id: string

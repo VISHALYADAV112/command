@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Commitment, Entity, LearningItem } from '../types'
 import { createBuiltInEntityTypes } from '../v3Registry'
 import {
-  loadRemoteData, loadV3Browse, loadV3BrowsePage, loadV3Due, loadV3DuePage, loadV3Item, loadV3Registry, loadV3Today,
+  decideAgentProposal, loadMcpClientPermissions, loadRemoteData, loadV3Browse, loadV3BrowsePage, loadV3Due, loadV3DuePage, loadV3Item, loadV3Registry, loadV3Today,
+  removeMcpClientPermissions, saveMcpClientPermissions,
   REMOTE_READ_LIMIT, upsertLearning, V3_PAGE_SIZE, V3_SCREEN_READ_LIMIT, writeV3Capture,
 } from './api'
 import type { CommandClient } from './supabase'
+import { DEFAULT_MCP_PERMISSIONS, MCP_PERMISSION } from '../../supabase/functions/_shared/mcp-permissions'
 
 const item: LearningItem = {
   id: '00000000-0000-4000-8000-000000000999',
@@ -66,7 +68,7 @@ describe('remote reads', () => {
 
     const tables = [
       'entity_types', 'entities', 'commitments', 'activity_events',
-      'daily_logs', 'learning_items', 'people', 'job_applications', 'projects', 'ideas',
+      'agent_proposals', 'daily_logs', 'learning_items', 'people', 'job_applications', 'projects', 'ideas',
     ]
     for (const table of tables) {
       expect(calls.some((call) => call.table === table && call.method === 'order')).toBe(true)
@@ -78,6 +80,7 @@ describe('remote reads', () => {
       entities: [],
       commitments: [],
       activityEvents: [],
+      agentProposals: [],
       legacy: { logs: [], learning: [], people: [], applications: [], projects: [], ideas: [] },
     })
   })
@@ -160,6 +163,58 @@ describe('remote reads', () => {
     await expect(loadV3BrowsePage(client, type, 50)).resolves.toEqual({ items: [], hasMore: false })
     expect(calls).toContainEqual({ method: 'order', args: ['updated_at', { ascending: false }] })
     expect(calls).toContainEqual({ method: 'range', args: [50, 50 + V3_PAGE_SIZE] })
+  })
+})
+
+describe('agent proposal decisions', () => {
+  it('uses the transactional decision RPC with reviewed payloads', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { state: 'approved' }, error: null })
+    const client = { rpc } as unknown as CommandClient
+    await decideAgentProposal(client, {
+      proposalId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', decision: 'approve',
+      entityPayload: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', title: 'Reviewed' },
+      decisionNote: 'Edited and approved in Command',
+    })
+    expect(rpc).toHaveBeenCalledWith('decide_agent_proposal', {
+      p_proposal_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      p_decision: 'approve',
+      p_entity_payload: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', title: 'Reviewed' },
+      p_decision_note: 'Edited and approved in Command',
+    })
+  })
+})
+
+describe('MCP client permissions', () => {
+  it('persists the selected owner/client grants explicitly', async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null })
+    const client = { from: () => ({ upsert }) } as unknown as CommandClient
+    await saveMcpClientPermissions(client, 'user-123', 'client-123', [
+      ...DEFAULT_MCP_PERMISSIONS, MCP_PERMISSION.peopleData,
+    ])
+    expect(upsert).toHaveBeenCalledWith({
+      user_id: 'user-123', client_id: 'client-123',
+      can_read_types: true, can_read_data: true, can_write_proposals: true, can_access_people: true,
+    })
+  })
+
+  it('maps and removes application permissions independently of OAuth identity scopes', async () => {
+    const rows = [{
+      client_id: 'client-123', can_read_types: true, can_read_data: true,
+      can_write_proposals: false, can_access_people: false,
+    }]
+    const limit = vi.fn().mockResolvedValue({ data: rows, error: null })
+    const removeEq = vi.fn().mockResolvedValue({ data: null, error: null })
+    const client = {
+      from: () => ({
+        select: () => ({ order: () => ({ limit }) }),
+        delete: () => ({ eq: removeEq }),
+      }),
+    } as unknown as CommandClient
+    await expect(loadMcpClientPermissions(client)).resolves.toEqual([{
+      clientId: 'client-123', permissions: [MCP_PERMISSION.typesRead, MCP_PERMISSION.dataRead],
+    }])
+    await removeMcpClientPermissions(client, 'client-123')
+    expect(removeEq).toHaveBeenCalledWith('client_id', 'client-123')
   })
 })
 

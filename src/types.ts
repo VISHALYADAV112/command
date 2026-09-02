@@ -231,5 +231,6 @@ export interface CommandData {
   entities: Entity[]
   commitments: Commitment[]
   activityEvents: ActivityEvent[]
+  agentProposals: AgentProposal[]
   legacy: LegacyCommandData
 }

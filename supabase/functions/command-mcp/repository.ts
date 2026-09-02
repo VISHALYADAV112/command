@@ -3,7 +3,14 @@ import { addDaysKey, indiaDateKey, weekRange } from './dates.ts'
 import {
   DAILY_FLOOR_KEYS, DEFAULT_FLOORS, meetsFloor, type DailyFloorKey,
 } from '../_shared/command-domain.ts'
-import type { AuditEntry, CaptureInput, CommandRepository } from './types.ts'
+import type {
+  AuditEntry, CaptureInput, CommandRepository, CompleteInput, QueryInput, ScheduleInput,
+} from './types.ts'
+import { commandError } from './errors.ts'
+import {
+  MCP_PERMISSION, mayReadType, permissionsFromRow, requirePermission, type McpPermission,
+} from './permissions.ts'
+import { assertCaptureFields, assertSchedule, type RegistryTypeRow } from './validation.ts'
 
 export interface RepositoryOptions {
   url: string
@@ -18,9 +25,10 @@ export interface RepositoryOptions {
 const TODAY_LIMIT = 50
 const WEEK_LIMIT = 100
 const LIST_LIMIT = 200
+const QUERY_SCAN_LIMIT = 100
 
 function checked<T>(result: { data: T; error: { message: string } | null }): T {
-  if (result.error) throw new Error(result.error.message)
+  if (result.error) throw commandError('unavailable')
   return result.data
 }
 
@@ -29,6 +37,146 @@ export function createCommandRepository(options: RepositoryOptions): CommandRepo
     global: { headers: { Authorization: `Bearer ${options.token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   })
+  let permissionRequest: Promise<McpPermission[]> | null = null
+
+  function permissions(): Promise<McpPermission[]> {
+    if (!permissionRequest) {
+      permissionRequest = loadPermissions()
+    }
+    return permissionRequest
+  }
+
+  async function loadPermissions(): Promise<McpPermission[]> {
+    const result = await options.service.from('mcp_client_permissions')
+      .select('can_read_types,can_read_data,can_write_proposals,can_access_people')
+      .eq('user_id', options.userId).eq('client_id', options.clientId).maybeSingle()
+    return permissionsFromRow(checked(result))
+  }
+
+  async function authorize(permission: string): Promise<void> {
+    requirePermission(await permissions(), permission)
+  }
+  async function describeTypes() {
+    const types = checked(await options.service.from('entity_types')
+      .select('id,type_key,singular_name,plural_name,field_schema,schema_version,allowed_commitment_kinds,plugin_key')
+      .eq('user_id', options.userId).eq('is_active', true).order('type_key').limit(50))
+    return { types }
+  }
+
+  async function proposal(
+    operation: 'capture' | 'schedule' | 'complete',
+    entityTypeId: string,
+    entityId: string | null,
+    commitmentId: string | null,
+    entityPayload: Record<string, unknown> | null,
+    commitmentPayload: Record<string, unknown> | null,
+    idempotencyKey: string,
+  ) {
+    const result = checked(await options.service.rpc('create_agent_proposal', {
+      p_user_id: options.userId,
+      p_client_id: options.clientId,
+      p_operation: operation,
+      p_entity_type_id: entityTypeId,
+      p_target_entity_id: entityId,
+      p_target_commitment_id: commitmentId,
+      p_entity_payload: entityPayload,
+      p_commitment_payload: commitmentPayload,
+      p_idempotency_key: idempotencyKey,
+    }))
+    return { proposal: result }
+  }
+
+  async function replay(idempotencyKey: string): Promise<Record<string, unknown> | null> {
+    const existing = checked(await options.service.from('agent_proposals')
+      .select('id,state').eq('user_id', options.userId).eq('client_id', options.clientId)
+      .eq('idempotency_key', idempotencyKey).maybeSingle())
+    return existing?.id ? {
+      proposal: { proposal_id: existing.id, state: existing.state, replayed: true },
+    } : null
+  }
+
+  async function typeForKey(typeKey: string): Promise<RegistryTypeRow> {
+    const row = checked(await options.service.from('entity_types')
+      .select('id,type_key,field_schema,schema_version,allowed_commitment_kinds,is_active')
+      .eq('user_id', options.userId).eq('type_key', typeKey).eq('is_active', true).maybeSingle())
+    if (!row?.id) throw commandError('not_found')
+    if (String(row.type_key) === 'person') await authorize(MCP_PERMISSION.peopleData)
+    return row as RegistryTypeRow
+  }
+
+  async function entityContext(entityId: string): Promise<{ type: RegistryTypeRow; archived: boolean }> {
+    const entity = checked(await options.service.from('entities').select('entity_type_id,archived_at')
+      .eq('user_id', options.userId).eq('id', entityId).maybeSingle())
+    if (!entity?.entity_type_id) throw commandError('not_found')
+    const type = checked(await options.service.from('entity_types')
+      .select('id,type_key,field_schema,schema_version,allowed_commitment_kinds,is_active')
+      .eq('user_id', options.userId).eq('id', entity.entity_type_id).eq('is_active', true).maybeSingle())
+    if (!type?.id) throw commandError('not_found')
+    if (String(type.type_key) === 'person') await authorize(MCP_PERMISSION.peopleData)
+    return { type: type as RegistryTypeRow, archived: Boolean(entity.archived_at) }
+  }
+
+  async function captureV3(input: CaptureInput) {
+    const existing = await replay(input.idempotencyKey)
+    if (existing) return existing
+    const type = await typeForKey(input.typeKey)
+    assertCaptureFields(type, input.fields, input.schemaVersion)
+    return proposal('capture', type.id, null, null, {
+      title: input.title, fields: input.fields, schema_version: input.schemaVersion,
+    }, null, input.idempotencyKey)
+  }
+
+  async function complete(input: CompleteInput) {
+    const existing = await replay(input.idempotencyKey)
+    if (existing) return existing
+    const [{ type, archived }, commitment] = await Promise.all([
+      entityContext(input.entityId),
+      options.service.from('commitments').select('entity_id,state').eq('user_id', options.userId)
+        .eq('id', input.commitmentId).maybeSingle().then(checked),
+    ])
+    if (archived || !commitment || commitment.entity_id !== input.entityId || commitment.state !== 'open') {
+      throw commandError('invalid_outcome')
+    }
+    return proposal('complete', type.id, input.entityId, input.commitmentId, null,
+      { outcome: input.outcome }, input.idempotencyKey)
+  }
+
+  async function schedule(input: ScheduleInput) {
+    const existing = await replay(input.idempotencyKey)
+    if (existing) return existing
+    const { type, archived } = await entityContext(input.entityId)
+    if (archived) throw commandError('invalid_schedule')
+    assertSchedule(type, input.kind, input.dueOn)
+    return proposal('schedule', type.id, input.entityId, null, null, {
+      kind: input.kind, action: input.action, due_on: input.dueOn,
+    }, input.idempotencyKey)
+  }
+
+  async function queryV3(input: QueryInput) {
+    const granted = await permissions()
+    const requestedType = input.typeKey ? await typeForKey(input.typeKey) : null
+    if (input.dueWindow) {
+      const rows = (checked(await options.service.rpc('get_v3_due_for_mcp', {
+        p_user_id: options.userId, p_window: input.dueWindow, p_type_key: input.typeKey ?? null,
+        p_limit: requestedType || granted.includes(MCP_PERMISSION.peopleData) ? input.limit : QUERY_SCAN_LIMIT,
+        p_offset: 0,
+      })) ?? []) as Array<Record<string, unknown>>
+      const visible = rows.filter((row) => mayReadType(granted, String(row.type_key)))
+      return { commitments: visible.slice(0, input.limit), limit: input.limit }
+    }
+
+    let request = options.service.from('entities').select('id,title,entity_type_id,created_at')
+      .eq('user_id', options.userId).is('archived_at', null).order('created_at', { ascending: false }).order('id').limit(input.limit)
+    if (requestedType) request = request.eq('entity_type_id', requestedType.id)
+    else if (!granted.includes(MCP_PERMISSION.peopleData)) {
+      const person = checked(await options.service.from('entity_types').select('id').eq('user_id', options.userId)
+        .eq('type_key', 'person').maybeSingle())
+      if (person?.id) request = request.neq('entity_type_id', person.id)
+    }
+    if (input.text) request = request.ilike('title', `%${escapeLike(input.text)}%`)
+    return { entities: checked(await request), limit: input.limit }
+  }
+
   async function getToday() {
     const today = indiaDateKey()
     const [log, settings, projects, jobs, people, learning] = await Promise.all([
@@ -102,41 +250,6 @@ export function createCommandRepository(options: RepositoryOptions): CommandRepo
     return { asOf, items: checked(await query) }
   }
 
-  async function capture(input: CaptureInput) {
-    const id = await stableUuid(`${options.userId}\0${input.kind}\0${input.idempotencyKey}`)
-    const common = { id, user_id: options.userId }
-    const content = input.content?.trim() || null
-    const nextAction = input.nextAction?.trim() || null
-    const due = input.dueOn || null
-    if (input.kind === 'idea') {
-      checked(await client.from('ideas').upsert(
-        { ...common, idea: input.title, problem: content, status: 'captured', next_action: nextAction },
-        { onConflict: 'id', ignoreDuplicates: true },
-      ))
-    } else if (input.kind === 'learning') {
-      checked(await client.from('learning_items').upsert(
-        { ...common, concept: input.title, stack: 'brain', track: input.track ?? 'dsa', item_type: 'concept', confidence: 1, next_review_on: due ?? addDaysKey(indiaDateKey(), 1), mastery_hits: 0, source_url: input.sourceUrl ?? null, content_markdown: content },
-        { onConflict: 'id', ignoreDuplicates: true },
-      ))
-    } else if (input.kind === 'project') {
-      checked(await client.from('projects').upsert(
-        { ...common, name: input.title, project_type: 'portfolio', status: 'active', payment_status: 'na', currency: 'INR', is_public: false, deadline_on: due, next_action: nextAction, content_markdown: content },
-        { onConflict: 'id', ignoreDuplicates: true },
-      ))
-    } else if (input.kind === 'person') {
-      checked(await client.from('people').upsert(
-        { ...common, name: input.title, company: input.subtitle?.trim() || null, status: 'to_reach_out', next_follow_up_on: due, notes: content },
-        { onConflict: 'id', ignoreDuplicates: true },
-      ))
-    } else {
-      checked(await client.from('job_applications').upsert(
-        { ...common, company: input.title, role: input.subtitle!, lane: 'sde', channel: 'india_product', status: 'researching', has_referral: false, window_closes_on: due, next_action: nextAction, notes: content },
-        { onConflict: 'id', ignoreDuplicates: true },
-      ))
-    }
-    return { created: { id, kind: input.kind, title: input.title }, idempotencyKey: input.idempotencyKey }
-  }
-
   async function audit(entry: AuditEntry): Promise<void> {
     const { error } = await options.service.from('mcp_audit_log').insert({
       user_id: options.userId,
@@ -150,7 +263,13 @@ export function createCommandRepository(options: RepositoryOptions): CommandRepo
     if (error) console.error('MCP audit write failed', error.message)
   }
 
-  return { getToday, getWeek, search, listProjects, listJobs, getLearningDue, capture, audit }
+  return {
+    authorize, describeTypes, capture: captureV3, complete, schedule, query: queryV3, audit,
+  }
+}
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
 }
 
 function deriveTodayFloors(
@@ -162,12 +281,4 @@ function deriveTodayFloors(
     const targetMinutes = Number(settings?.[`${key}_floor_minutes`] ?? DEFAULT_FLOORS[key])
     return [key, { minutes, targetMinutes, met: meetsFloor(minutes, targetMinutes) }]
   })) as Record<DailyFloorKey, { minutes: number; targetMinutes: number; met: boolean }>
-}
-
-async function stableUuid(value: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))).slice(0, 16)
-  digest[6] = (digest[6] & 0x0f) | 0x50
-  digest[8] = (digest[8] & 0x3f) | 0x80
-  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }

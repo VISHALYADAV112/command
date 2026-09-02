@@ -16,13 +16,13 @@ select ok(
 );
 select is(
   (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'daily_logs'),
-  4,
-  'daily_logs has select, insert, update, and delete policies'
+  5,
+  'daily_logs has CRUD ownership plus direct-OAuth isolation policies'
 );
 select is(
   (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'job_applications'),
-  4,
-  'job_applications has all CRUD policies'
+  5,
+  'job_applications has CRUD ownership plus direct-OAuth isolation policies'
 );
 select ok(
   not has_table_privilege('authenticated', 'public.integration_accounts', 'select'),

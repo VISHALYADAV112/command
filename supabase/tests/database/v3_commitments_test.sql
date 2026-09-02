@@ -17,8 +17,8 @@ select ok(
 );
 select is(
   (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'commitments'),
-  3,
-  'commitments has select, insert, and update ownership policies'
+  4,
+  'commitments has ownership plus direct-OAuth isolation policies'
 );
 select ok(
   has_table_privilege('authenticated', 'public.commitments', 'select'),

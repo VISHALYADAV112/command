@@ -11,6 +11,7 @@
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import { allDayEvent, oauthState, pkceVerifier, todayWindow } from '../_shared/calendar.ts'
+import { oauthClientIdFromToken } from '../_shared/oauth-token.ts'
 
 const CID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const CSECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
@@ -79,9 +80,11 @@ async function sha256b64(s: string): Promise<string> {
 async function userId(req: Request): Promise<string | null> {
   const header = req.headers.get('authorization')
   if (!header) return null
+  const token = header.replace(/^Bearer /i, '')
   const client = makeClient()
-  const { data, error } = await client.auth.getUser(header.replace(/^Bearer /i, ''))
-  return error || !data.user ? null : data.user.id
+  const { data, error } = await client.auth.getUser(token)
+  if (error || !data.user || oauthClientIdFromToken(token)) return null
+  return data.user.id
 }
 
 async function postForm(url: string, params: Record<string, string>) {

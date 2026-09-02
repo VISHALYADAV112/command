@@ -1,100 +1,93 @@
 import { McpServer, type CallToolResult } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import type { CaptureInput, CommandRepository } from './types.ts'
+import type { CaptureInput, CommandRepository, CompleteInput, QueryInput, ScheduleInput } from './types.ts'
+import { publicErrorMessage } from './errors.ts'
+import { MCP_PERMISSION } from './permissions.ts'
+import { validDate } from './validation.ts'
 
 const empty = z.object({})
-const projectStatus = z.enum(['active', 'blocked', 'review', 'done']).optional()
-const jobStatus = z.enum(['researching', 'applied', 'oa', 'phone', 'onsite', 'offer', 'rejected']).optional()
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+const date = z.string().refine(validDate, 'Use a real date in YYYY-MM-DD format.')
+const fieldValue = z.union([
+  z.string().max(10_000), z.number().finite(), z.boolean(), z.null(),
+])
 const capture = z.object({
-  kind: z.enum(['idea', 'learning', 'project', 'person', 'application']),
+  typeKey: z.string().trim().regex(/^[a-z][a-z0-9_]{0,62}$/),
   title: z.string().trim().min(1).max(200),
-  subtitle: z.string().trim().max(200).optional(),
-  content: z.string().trim().max(5000).optional(),
-  nextAction: z.string().trim().max(500).optional(),
-  dueOn: date.optional(),
-  track: z.enum(['node', 'dsa', 'math']).optional(),
-  sourceUrl: z.string().url().max(1000).optional(),
+  fields: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,62}$/), fieldValue)
+    .refine((fields) => Object.keys(fields).length <= 50, 'At most 50 fields are allowed.')
+    .refine((fields) => new TextEncoder().encode(JSON.stringify(fields)).byteLength <= 65_536, 'Fields are too large.'),
+  schemaVersion: z.number().int().positive().max(1000),
   idempotencyKey: z.string().trim().min(8).max(200),
-}).superRefine((value, ctx) => {
-  if ((value.kind === 'project' || value.kind === 'application') && !value.nextAction) {
-    ctx.addIssue({ code: 'custom', path: ['nextAction'], message: 'Active work requires a next action.' })
-  }
-  if (value.kind === 'application' && !value.subtitle) {
-    ctx.addIssue({ code: 'custom', path: ['subtitle'], message: 'Applications require the role in subtitle.' })
-  }
+})
+const complete = z.object({
+  entityId: z.string().uuid(), commitmentId: z.string().uuid(),
+  outcome: z.string().trim().min(1).max(5000), idempotencyKey: z.string().trim().min(8).max(200),
+})
+const schedule = z.object({
+  entityId: z.string().uuid(), kind: z.string().trim().min(1).max(80),
+  action: z.string().trim().min(1).max(500), dueOn: date,
+  idempotencyKey: z.string().trim().min(8).max(200),
+})
+const query = z.object({
+  typeKey: z.string().trim().regex(/^[a-z][a-z0-9_]{0,62}$/).optional(),
+  dueWindow: z.enum(['overdue', 'today', 'week', 'all']).optional(),
+  text: z.string().trim().min(2).max(100).optional(),
+  limit: z.number().int().min(1).max(20).default(20),
+}).refine((value) => value.typeKey || value.dueWindow || value.text, {
+  message: 'Provide a type, due window, or text filter.',
+}).refine((value) => !(value.dueWindow && value.text), {
+  message: 'Use either a due window or text search, not both.',
 })
 
 export function createCommandServer(repository: CommandRepository): McpServer {
   const server = new McpServer({ name: 'command', version: '0.1.0' })
 
-  server.registerTool('command_get_today', {
-    title: 'Get Command today', description: 'Read today’s log, active work, follow-ups, and due learning.', inputSchema: empty,
+  server.registerTool('command_describe_types', {
+    title: 'Describe Command types', description: 'Discover active types, current field schemas, and allowed commitment kinds.', inputSchema: empty,
     annotations: { readOnlyHint: true, idempotentHint: true },
-  }, () => run(repository, 'command_get_today', {}, () => repository.getToday()))
-
-  server.registerTool('command_get_week', {
-    title: 'Get Command week', description: 'Read the current Monday–Sunday activity and commitments.', inputSchema: empty,
-    annotations: { readOnlyHint: true, idempotentHint: true },
-  }, () => run(repository, 'command_get_week', {}, () => repository.getWeek()))
-
-  server.registerTool('command_search', {
-    title: 'Search Command', description: 'Search learning, people, applications, projects, ideas, and daily notes.',
-    inputSchema: z.object({ query: z.string().trim().min(2).max(100), limit: z.number().int().min(1).max(50).default(20) }),
-    annotations: { readOnlyHint: true, idempotentHint: true },
-  }, ({ query, limit }) => run(repository, 'command_search', { queryLength: query.length }, () => repository.search(query, limit)))
-
-  server.registerTool('command_list_projects', {
-    title: 'List Command projects', description: 'List projects, optionally filtered by status.',
-    inputSchema: z.object({ status: projectStatus }), annotations: { readOnlyHint: true, idempotentHint: true },
-  }, ({ status }) => run(repository, 'command_list_projects', { status }, () => repository.listProjects(status)))
-
-  server.registerTool('command_list_jobs', {
-    title: 'List Command applications', description: 'List job applications, optionally filtered by pipeline status.',
-    inputSchema: z.object({ status: jobStatus }), annotations: { readOnlyHint: true, idempotentHint: true },
-  }, ({ status }) => run(repository, 'command_list_jobs', { status }, () => repository.listJobs(status)))
-
-  server.registerTool('command_get_learning_due', {
-    title: 'Get learning due', description: 'List learning items due for recall on or before a date.',
-    inputSchema: z.object({ asOf: date.optional() }), annotations: { readOnlyHint: true, idempotentHint: true },
-  }, ({ asOf }) => run(repository, 'command_get_learning_due', { asOf }, () => repository.getLearningDue(asOf)))
+  }, () => run(repository, MCP_PERMISSION.typesRead, 'command_describe_types', {}, () => repository.describeTypes()))
 
   server.registerTool('command_capture', {
     title: 'Capture into Command',
-    description: 'Idempotently capture an idea, learning item, project, person, or job application. For applications, title is company and subtitle is role.',
+    description: 'Create a schema-validated pending proposal for a record of a discovered type.',
     inputSchema: capture,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
-  }, (input) => run(repository, 'command_capture', { kind: input.kind }, () => repository.capture(input as CaptureInput)))
+  }, (input) => run(repository, MCP_PERMISSION.proposalsWrite, 'command_capture', { typeKey: input.typeKey }, () => repository.capture(input as CaptureInput)))
 
-  server.registerResource('command-today', 'command://today', {
-    title: 'Command today', description: 'Today’s current operating context', mimeType: 'application/json',
-  }, async (uri) => resource(uri, await repository.getToday()))
+  server.registerTool('command_complete', {
+    title: 'Complete a Command commitment', description: 'Create a pending proposal to record a commitment outcome.',
+    inputSchema: complete, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  }, (input) => run(repository, MCP_PERMISSION.proposalsWrite, 'command_complete', {}, () => repository.complete(input as CompleteInput)))
 
-  server.registerResource('command-week', 'command://week', {
-    title: 'Command week', description: 'The current Monday–Sunday context', mimeType: 'application/json',
-  }, async (uri) => resource(uri, await repository.getWeek()))
+  server.registerTool('command_schedule', {
+    title: 'Schedule a Command commitment', description: 'Create a pending proposal for a permitted commitment kind.',
+    inputSchema: schedule, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  }, (input) => run(repository, MCP_PERMISSION.proposalsWrite, 'command_schedule', {}, () => repository.schedule(input as ScheduleInput)))
+
+  server.registerTool('command_query', {
+    title: 'Query Command', description: 'Read a bounded set of records or open commitments using a type, due-window, or text filter.',
+    inputSchema: query, annotations: { readOnlyHint: true, idempotentHint: true },
+  }, (input) => run(repository, MCP_PERMISSION.dataRead, 'command_query', { typeKey: input.typeKey, dueWindow: input.dueWindow, hasText: Boolean(input.text) }, () => repository.query(input as QueryInput)))
 
   return server
 }
 
 async function run(
   repository: CommandRepository,
+  requiredPermission: string,
   tool: string,
   summary: Record<string, unknown>,
   operation: () => Promise<Record<string, unknown>>,
 ): Promise<CallToolResult> {
   const started = performance.now()
   try {
+    await repository.authorize(requiredPermission)
     const output = await operation()
     await repository.audit({ tool, summary, success: true, durationMs: performance.now() - started })
     return { content: [{ type: 'text', text: JSON.stringify(output) }], structuredContent: output }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Command operation failed.'
+    const message = publicErrorMessage(error)
     await repository.audit({ tool, summary, success: false, error: message, durationMs: performance.now() - started })
     return { content: [{ type: 'text', text: message.slice(0, 300) }], isError: true }
   }
-}
-
-function resource(uri: URL, data: Record<string, unknown>) {
-  return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(data) }] }
 }

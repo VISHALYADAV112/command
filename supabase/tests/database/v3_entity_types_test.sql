@@ -13,8 +13,8 @@ select ok(
 );
 select is(
   (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'entity_types'),
-  3,
-  'entity_types has select, insert, and update policies'
+  4,
+  'entity_types has ownership plus direct-OAuth isolation policies'
 );
 select ok(
   has_table_privilege('authenticated', 'public.entity_types', 'select'),

@@ -4,7 +4,7 @@ import type { CommandData, Commitment, DailyLog, Entity, EntityType, Idea, JobAp
 import { getSupabase } from './lib/supabase'
 import { isSupabaseConfigured } from './lib/config'
 import { onAuthStateChange, signOut as doSignOut, getSession } from './lib/auth'
-import { loadRemoteData, loadRemoteSettings, loadV3BrowsePage, loadV3DuePage, type RemoteDueItem, type RemotePage } from './lib/api'
+import { decideAgentProposal, loadRemoteData, loadRemoteSettings, loadV3BrowsePage, loadV3DuePage, type AgentProposalDecision, type RemoteDueItem, type RemotePage } from './lib/api'
 import { settings as defaultSettings } from './domain'
 import {
   clearDemoCache, readDemoData, readLiveCache, readStoredSettings,
@@ -47,6 +47,7 @@ export interface UseCommandDataResult {
   saveCapture: (entity: Entity, commitment: Commitment | null) => boolean
   archiveEntity: (entity: Entity) => boolean
   restoreEntity: (entity: Entity) => boolean
+  decideProposal: (decision: AgentProposalDecision) => Promise<boolean>
   saveSettings: (next: Settings) => boolean
   signOut: () => void
 }
@@ -147,6 +148,24 @@ export function useCommandData(): UseCommandDataResult {
     return loadV3BrowsePage(client, type, offset)
   }, [mode])
 
+  async function decideProposal(decision: AgentProposalDecision): Promise<boolean> {
+    if (!sync.canWrite() || mode !== 'live') return false
+    const client = getSupabase()
+    if (!client || !session?.user.id) {
+      sync.fail(new Error('Your session has expired.'), 'Your session has expired.')
+      return false
+    }
+    sync.mark('saving', 'Applying reviewed proposal…')
+    try {
+      await decideAgentProposal(client, decision)
+      boot()
+      return true
+    } catch (error) {
+      sync.fail(new Error(proposalDecisionMessage(error)), 'Could not decide this proposal.')
+      return false
+    }
+  }
+
   function signOutFromCommand(): void {
     if (mode === 'demo') {
       clearDemoCache()
@@ -175,8 +194,17 @@ export function useCommandData(): UseCommandDataResult {
     retrySync: sync.retry,
     loadDuePage,
     loadBrowsePage,
+    decideProposal,
     ...mutations,
     ...v3Mutations,
     signOut: signOutFromCommand,
   }
+}
+
+function proposalDecisionMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : ''
+  if (message.includes('target changed')) return 'This proposal is stale because the record changed. Reject it and ask the client to propose again.'
+  if (message.includes('already decided')) return 'This proposal was already decided. Refreshing will show its current state.'
+  if (message.includes('invalid') || message.includes('not current')) return 'This proposal no longer matches the current record rules.'
+  return 'Could not apply this proposal. Nothing was changed.'
 }

@@ -85,6 +85,21 @@ The functions deliberately validate requests themselves. Calendar must accept
 the unauthenticated Google OAuth callback, which is protected by one-time state
 and PKCE; all other Calendar actions validate the user's bearer token. MCP
 verifies its OAuth bearer token before rate limiting and dispatching tools.
+The MCP resource advertises only the supported `email` OAuth identity scope.
+Command tool permissions are separate owner/client rows in
+`mcp_client_permissions`: registry read (`command:types:read`), bounded
+canonical reads (`command:data:read`), approval-gated proposal creation
+(`command:proposals:write`), and the additional person-data grant
+(`command:data:people`). OAuth identity scopes grant no Command tool access;
+missing application permissions deny every tool. Proposal writes never bypass
+the transactional review RPC. Restrictive RLS policies deny OAuth-client tokens
+direct access to public user tables and guarded UI RPCs; the MCP Edge Function
+uses its service credential with an explicit owner filter. The Calendar
+function also refuses connected-client tokens, so Calendar writes remain a
+separate, first-party action.
+
+Migrations `0026`–`0032` are local-only Phase 6 work. They have not been applied
+to production, and neither v3 Edge Function has been deployed for this phase.
 
 Do not run the production workflow merely to verify a code change. Migration
 application, function deployment, and production smoke tests require an

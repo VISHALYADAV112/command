@@ -26,6 +26,7 @@
   --state-warning: #d4a03c;
   --state-danger: #a8452f;
   --state-info: #596d9e;
+  --agent: #9a73bd;
   --text: #edeae4;
   --muted: #8a867e;
   --faint: #5f5c57;
@@ -49,6 +50,7 @@
   --state-warning: #a86218;
   --state-danger: #9b3d2d;
   --state-info: #52698f;
+  --agent: #70488f;
   --text: #2c2925;
   --muted: #706a61;
   --faint: #9a9287;
@@ -1953,6 +1955,28 @@ fieldset > legend,
 .timeline strong { font-size: 12px; font-weight: 560; text-transform: capitalize; }
 .timeline span, .timeline time { color: var(--muted); font-size: 10px; }
 .timeline time { grid-column: 2; grid-row: 1 / 3; align-self: center; text-align: right; }
+
+.today-topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.agent-inbox-indicator { min-height: 44px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--agent) 62%, var(--line)); color: var(--agent); background: color-mix(in srgb, var(--agent) 8%, transparent); font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.agent-inbox-intro { margin: 0 0 var(--space-5); color: var(--muted); line-height: 1.6; }
+.agent-proposal-group { margin-top: var(--space-5); }
+.agent-proposal-group > h3 { margin: 0 0 var(--space-3); font: 600 11px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.agent-proposal-list { display: grid; gap: var(--space-3); }
+.agent-proposal { padding: var(--space-4); border: 1px solid var(--line); border-left: 3px solid var(--agent); background: color-mix(in srgb, var(--agent) 5%, var(--surface)); }
+.agent-proposal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.agent-proposal-heading > div { display: grid; gap: var(--space-2); min-width: 0; }
+.agent-proposal-heading strong { overflow-wrap: anywhere; font-size: 15px; }
+.agent-pill { color: var(--agent); border-color: color-mix(in srgb, var(--agent) 48%, var(--line)); }
+.proposal-state { flex: 0 0 auto; font: 600 9px/1 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
+.proposal-state.is-pending { color: var(--agent); }
+.proposal-state.is-approved { color: var(--state-success); }
+.proposal-state.is-rejected, .proposal-state.is-expired { color: var(--muted); }
+.agent-proposal > p, .agent-proposal > time { display: block; margin: var(--space-2) 0 0; color: var(--muted); font-size: 11px; }
+.agent-proposal-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.agent-editor { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.oauth-permission-list { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-4); border: 1px solid var(--line); }
+.oauth-permission-list legend { padding: 0 var(--space-2); color: var(--muted); font: 600 10px/1 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
+.oauth-permission-list .check-row { min-height: 44px; padding: 8px 10px; border-left: 2px solid var(--agent); background: color-mix(in srgb, var(--agent) 6%, var(--surface)); color: var(--text); font-size: 12px; }
 .entity-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .entity-field-grid textarea { min-height: 92px; }
 .entity-field-grid .check-row { align-self: end; min-height: 48px; }

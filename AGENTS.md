@@ -53,8 +53,9 @@ CI runs all three on every push and PR. Do not push red.
 
 - IDs are client-generated UUIDs (`uid()` → valid uuid, no textual prefixes —
   every remote `id` column is `uuid` typed); UI creates and edits use upsert so
-  they share one path. MCP idempotent capture uses insert-or-ignore and must
-  never overwrite a later UI edit. Inserts include `user_id` explicitly.
+  they share one path. MCP writes create validated, idempotent proposals keyed
+  by owner/client/key; retries return the existing proposal and must never
+  overwrite a later UI edit. Inserts include `user_id` explicitly.
 - Dates are `YYYY-MM-DD` strings via `dateKey`; weeks start Monday.
 - Failures surface as bounded quiet messages (toast / muted text), never alert().
 - Secrets: only publishable keys in browser env (`VITE_*`). Service keys live in
@@ -65,3 +66,9 @@ CI runs all three on every push and PR. Do not push red.
   authentication themselves. The Calendar OAuth callback arrives
   unauthenticated by design and is protected by one-time state + PKCE; the MCP
   function verifies its OAuth bearer token before serving requests.
+- Supabase OAuth scopes are identity-only. Command MCP permissions are separate
+  owner/client application grants; connected-client tokens cannot access public
+  tables, first-party mutation RPCs, permission management, or Calendar directly.
+- Until the coordinated Phase 8 cutover, v3 work stays on `command-v3` and the
+  public Vercel alias stays pinned to the compatible Phase 4 deployment. Do not
+  apply v3 migrations or deploy v3 Edge Functions to production early.

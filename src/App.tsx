@@ -17,6 +17,7 @@ import { ItemView } from './views/ItemView'
 import { EntitySheet } from './views/EntitySheet'
 import { OutcomeSheet, ScheduleSheet } from './views/CommitmentSheets'
 import { DailyLogSheet } from './views/DailyLogSheet'
+import { AgentInboxSheet } from './views/AgentInboxSheet'
 
 export function App() {
   const today = useIndiaToday()
@@ -28,6 +29,7 @@ export function App() {
   const [editingEntity, setEditingEntity] = useState<Entity | null>(null)
   const [scheduling, setScheduling] = useState<{ entity: Entity; commitment: Commitment | null } | null>(null)
   const [outcome, setOutcome] = useState<Commitment | null>(null)
+  const [agentInboxOpen, setAgentInboxOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [updateReady, setUpdateReady] = useState(false)
   const authorizationId = oauthAuthorizationId()
@@ -87,7 +89,7 @@ export function App() {
     <div className="app-shell" id="top">
       <AppHeader today={today} live={command.mode === 'live'} theme={command.settings.theme} onOpenSettings={() => setSettingsOpen(true)} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
       <ViewNav route={route} navigate={navigate} onCapture={() => openCapture()} onMore={() => setSettingsOpen(true)} />
-      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} />}
+      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} onOpenAgentInbox={() => setAgentInboxOpen(true)} />}
       {route.kind === 'due' && <DueView data={data} today={today} window={route.window} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadDuePage : undefined} onChange={(window, typeKey) => navigate({ kind: 'due', window, typeKey })} onOutcome={setOutcome} onOpenItem={openItem} onCapture={openCapture} />}
       {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadBrowsePage : undefined} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => setSettingsOpen(true)} />}
       {route.kind === 'item' && <ItemView data={data} entityId={route.id} onEdit={setEditingEntity} onSchedule={(entity, commitment = null) => setScheduling({ entity, commitment })} onOutcome={setOutcome} onArchive={archive} onRestore={restore} />}
@@ -99,6 +101,7 @@ export function App() {
     {editingEntity && <EntitySheet types={data.entityTypes} existing={editingEntity} onSave={saveEntity} onClose={() => setEditingEntity(null)} />}
     {scheduling && <ScheduleSheet entity={scheduling.entity} type={data.entityTypes.find((type) => type.id === scheduling.entity.entityTypeId)!} existing={scheduling.commitment} onSave={saveCommitment} onClose={() => setScheduling(null)} />}
     {outcome && <OutcomeSheet commitment={outcome} onSave={saveCommitment} onClose={() => setOutcome(null)} />}
+    {agentInboxOpen && <AgentInboxSheet data={data} onDecide={command.decideProposal} onClose={() => setAgentInboxOpen(false)} />}
     {settingsOpen && <SettingsSheet settings={command.settings} session={command.session} mode={command.mode} onSaveSettings={(settings) => { const saved = command.saveSettings(settings); if (saved) showNotice('Targets saved'); return saved }} onSignOut={() => { setSettingsOpen(false); command.signOut() }} onClose={() => setSettingsOpen(false)} onExport={handleExport} />}
     <SyncBanner state={command.syncState} message={command.syncMessage} onRetry={command.retrySync} />
     {updateReady && <div className="update-banner" role="status"><span>A new version is ready.</span><button className="secondary-button" type="button" onClick={() => window.location.reload()}>Refresh</button></div>}

@@ -76,6 +76,7 @@ export function upgradeLegacyData(raw: Partial<LegacyCommandData>): CommandData 
     entities,
     commitments,
     activityEvents: createMigrationEvents(entities, commitments, legacy),
+    agentProposals: [],
     legacy,
   }
 }
@@ -100,6 +101,7 @@ export function normalizeCommandData(data: CommandData): CommandData {
   }
   return {
     ...data,
+    agentProposals: Array.isArray(data.agentProposals) ? data.agentProposals : [],
     entities: data.entities.map((item) => {
       const createdAt = item.createdAt ?? firstEventByEntity.get(item.id) ?? '1970-01-01T00:00:00.000Z'
       return { ...item, createdAt, updatedAt: item.updatedAt ?? createdAt }
