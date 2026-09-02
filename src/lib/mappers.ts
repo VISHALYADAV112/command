@@ -1,4 +1,4 @@
-import type { ActivityEvent, AgentProposal, CommandData, Commitment, DailyLog, Entity, EntityFieldDefinition, EntityType, Idea, JobApplication, LearningItem, Person, Project, PracticeKey, Settings } from '../types'
+import type { ActivityEvent, AgentProposal, CommandData, Commitment, DailyLog, Entity, EntityFieldDefinition, EntityType, Idea, JobApplication, LearningItem, Person, Project, PracticeKey, RunMetric, RunSummary, Settings, WeekSummary } from '../types'
 import type { DbActivityEvent, DbAgentProposal, DbCommitment, DbDailyLog, DbEntity, DbEntityType, DbEntityWrite, DbIdea, DbJobApplication, DbLearningItem, DbPerson, DbProject, DbUserSettings } from './db.rows'
 
 export function mapLog(row: DbDailyLog): DailyLog {
@@ -384,6 +384,100 @@ export function settingsToDb(settings: Settings): Omit<DbUserSettings, 'user_id'
     weekly_application_target: settings.weeklyTargets.applications,
     weekly_people_contact_target: settings.weeklyTargets.peopleContacted,
   }
+}
+
+export function mapWeekSummary(value: unknown): WeekSummary {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Week summary is unavailable.')
+  const row = value as Record<string, unknown>
+  if (!Array.isArray(row.days) || row.days.length !== 7) throw new Error('Week summary is unavailable.')
+  const practice = objectValue(row.practice)
+  return {
+    weekStart: String(row.week_start),
+    weekEnd: String(row.week_end),
+    days: row.days.map((value) => {
+      const day = objectValue(value)
+      return {
+        day: String(day.day),
+        isFuture: Boolean(day.is_future),
+        hasLog: day.node_minutes !== null && day.node_minutes !== undefined,
+        nodeMinutes: nullableNumber(day.node_minutes),
+        dsaMinutes: nullableNumber(day.dsa_minutes),
+        mathMinutes: nullableNumber(day.math_minutes),
+        meditation: nullableBoolean(day.meditation),
+        gym: nullableBoolean(day.gym),
+        diet: (day.diet ?? null) as WeekSummary['days'][number]['diet'],
+      }
+    }),
+    practice: {
+      node: progress(practice.node),
+      dsa: progress(practice.dsa),
+      math: progress(practice.math),
+    },
+    applicationsSubmitted: Number(row.applications_submitted ?? 0),
+    applicationTarget: Number(row.application_target ?? 0),
+    peopleContacted: Number(row.people_contacted ?? 0),
+    peopleTarget: Number(row.people_target ?? 0),
+    commitments: counts(row.commitments, ['completed', 'cancelled', 'missed']),
+    proposals: counts(row.proposals, ['proposed', 'approved', 'rejected']),
+  }
+}
+
+export function mapRunSummary(value: unknown): RunSummary {
+  const row = objectValue(value)
+  const markers = objectValue(row.markers)
+  const publicPortfolio = runMetric(markers.public_portfolio)
+  const dsaPatterns = objectValue(markers.dsa_patterns)
+  const applicationConversion = objectValue(markers.application_conversion)
+  return {
+    asOfDay: String(row.as_of_day),
+    historyStart: String(row.history_start),
+    historyEnd: String(row.history_end),
+    publicPortfolio,
+    dsaPatterns: { ...runMetric(dsaPatterns), covered: Number(dsaPatterns.covered ?? 0) },
+    mockInterviews: runMetric(markers.mock_interviews),
+    applicationConversion: {
+      ...runMetric(applicationConversion),
+      numerator: Number(applicationConversion.numerator ?? 0),
+      denominator: Number(applicationConversion.denominator ?? 0),
+    },
+    referralConversations: runMetric(markers.referral_conversations),
+  }
+}
+
+function runMetric(value: unknown): RunMetric {
+  const row = objectValue(value)
+  if (!Array.isArray(row.history) || row.history.length !== 3) throw new Error('Run summary is unavailable.')
+  return {
+    current: nullableNumber(row.current),
+    target: Number(row.target ?? 0),
+    historyReady: row.history_ready === true,
+    history: row.history.map((point) => {
+      const history = objectValue(point)
+      return { month: String(history.month), value: nullableNumber(history.value) }
+    }),
+  }
+}
+
+function nullableNumber(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
+function nullableBoolean(value: unknown): boolean | null {
+  return value === null || value === undefined ? null : Boolean(value)
+}
+
+function progress(value: unknown): { minutes: number; target: number } {
+  const row = objectValue(value)
+  return { minutes: Number(row.minutes ?? 0), target: Number(row.target ?? 0) }
+}
+
+function counts<T extends string>(value: unknown, keys: readonly T[]): Record<T, number> {
+  const row = objectValue(value)
+  return Object.fromEntries(keys.map((key) => [key, Number(row[key] ?? 0)])) as Record<T, number>
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
 export type RemoteData = CommandData

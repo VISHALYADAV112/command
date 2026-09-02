@@ -10,7 +10,8 @@
 // tokens are encrypted with an edge-only key; browser code never sees them.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
-import { allDayEvent, oauthState, pkceVerifier, todayWindow } from '../_shared/calendar.ts'
+import { allDayEvent, calendarCommitmentEvent, oauthState, pkceVerifier, todayWindow } from '../_shared/calendar.ts'
+import { decryptCalendarToken, encryptCalendarToken } from '../_shared/calendar-token.ts'
 import { oauthClientIdFromToken } from '../_shared/oauth-token.ts'
 
 const CID = Deno.env.get('GOOGLE_CLIENT_ID')!
@@ -112,51 +113,47 @@ function cal(accessToken: string, path: string, init?: RequestInit) {
 // GOOGLE_TOKEN_KEY edge secret — never in the database or browser.
 const TOKEN_KEY_B64 = Deno.env.get('GOOGLE_TOKEN_KEY')!
 
-async function tokenKey(): Promise<CryptoKey> {
-  const raw = Uint8Array.from(atob(TOKEN_KEY_B64), (ch) => ch.charCodeAt(0))
-  return crypto.subtle.importKey('raw', raw.buffer, 'AES-GCM', false, ['encrypt', 'decrypt'])
-}
-
-async function encryptToken(plain: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const key = await tokenKey()
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain)))
-  const pack = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
-  return `${pack(iv)}.${pack(ct)}`
-}
-
-async function decryptToken(packed: string): Promise<string | null> {
-  try {
-    const [ivB64, ctB64] = packed.split('.')
-    const unpack = (b64: string) => Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))
-    const key = await tokenKey()
-    const plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: unpack(ivB64) }, key, unpack(ctB64),
-    )
-    return new TextDecoder().decode(plain)
-  } catch {
-    return null
-  }
-}
-
 async function accessToken(c: SupabaseClient, userId: string) {
   const { data, error } = await c.from('integration_accounts')
-    .select('refresh_token_enc').eq('user_id', userId).maybeSingle()
+    .select('refresh_token_enc').eq('user_id', userId).eq('provider', 'google').maybeSingle()
   if (error || !data?.refresh_token_enc) return null
-  const secret = await decryptToken(data.refresh_token_enc)
+  const secret = await decryptCalendarToken(data.refresh_token_enc, TOKEN_KEY_B64)
   if (!secret) return null
   const refreshed = await postForm(TOKEN_URL, {
     client_id: CID, client_secret: CSECRET, refresh_token: secret, grant_type: 'refresh_token',
   })
   if (!refreshed.ok || !refreshed.data?.access_token) {
     await c.from('integration_accounts')
-      .update({ status: refreshed.status === 400 ? 'expired' : 'error' }).eq('user_id', userId)
+      .update({ status: refreshed.status === 400 ? 'expired' : 'error' })
+      .eq('user_id', userId).eq('provider', 'google')
     return null
   }
   const { error: verifiedError } = await c.from('integration_accounts')
-    .update({ status: 'connected', last_verified_at: new Date().toISOString() }).eq('user_id', userId)
+    .update({ status: 'connected', last_verified_at: new Date().toISOString() })
+    .eq('user_id', userId).eq('provider', 'google')
   if (verifiedError) console.error('calendar token verification timestamp failed', verifiedError)
   return refreshed.data.access_token
+}
+
+async function recordCalendarActivity(
+  c: SupabaseClient,
+  userId: string,
+  entityId: string,
+  commitmentId: string,
+  eventType: 'calendar.exported' | 'calendar.unlinked',
+  externalId: string,
+) {
+  const fingerprint = await sha256b64(`${eventType}:${commitmentId}:${externalId}`)
+  const { error } = await c.from('activity_events').insert({
+    user_id: userId,
+    entity_id: entityId,
+    commitment_id: commitmentId,
+    event_type: eventType,
+    payload: { provider: 'google', external_id: externalId },
+    source: 'calendar',
+    idempotency_key: `calendar-${fingerprint}`,
+  })
+  if (error && error.code !== '23505') console.error('calendar activity write failed', error)
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +188,7 @@ async function handler(req: Request, action: string): Promise<Response> {
       if (!ex.ok || !ex.data?.refresh_token) {
         console.error(`calendar callback: token exchange failed (${ex.status})`, ex.data)
       } else {
-        const enc = await encryptToken(ex.data.refresh_token)
+        const enc = await encryptCalendarToken(ex.data.refresh_token, TOKEN_KEY_B64)
         const { error: upsertError } = await c.from('integration_accounts').upsert({
           user_id: row.user_id, provider: 'google',
           provider_account_id: row.user_id,
@@ -246,17 +243,22 @@ async function handler(req: Request, action: string): Promise<Response> {
     }
 
     case 'status': {
-      const { data, error } = await c.from('integration_accounts')
-        .select('provider,status,last_verified_at,scopes').eq('user_id', uid).maybeSingle()
-      if (error) return json({ error: error.message }, 500)
-      return json({ connected: data?.status === 'connected', account: data })
+      const [{ data, error }, { data: links, error: linkError }] = await Promise.all([
+        c.from('integration_accounts').select('provider,status,last_verified_at,scopes')
+          .eq('user_id', uid).eq('provider', 'google').maybeSingle(),
+        c.from('integration_links').select('last_synced_at').eq('user_id', uid).eq('provider', 'google')
+          .eq('entity_type', 'commitment').eq('external_type', 'calendar_event')
+          .order('last_synced_at', { ascending: false }).limit(1),
+      ])
+      if (error || linkError) return json({ error: error?.message ?? linkError?.message }, 500)
+      return json({ connected: data?.status === 'connected', account: data, last_synced_at: links?.[0]?.last_synced_at ?? null })
     }
 
     case 'disconnect': {
       const { data: account } = await c.from('integration_accounts')
-        .select('refresh_token_enc').eq('user_id', uid).maybeSingle()
+        .select('refresh_token_enc').eq('user_id', uid).eq('provider', 'google').maybeSingle()
       if (account?.refresh_token_enc) {
-        const token = await decryptToken(account.refresh_token_enc)
+        const token = await decryptCalendarToken(account.refresh_token_enc, TOKEN_KEY_B64)
         if (token) {
           await fetch('https://oauth2.googleapis.com/revoke', {
             method: 'POST',
@@ -265,9 +267,11 @@ async function handler(req: Request, action: string): Promise<Response> {
           }).catch(() => null)
         }
       }
-      const { error: linkError } = await c.from('integration_links').delete().eq('user_id', uid)
+      const { error: linkError } = await c.from('integration_links').delete()
+        .eq('user_id', uid).eq('provider', 'google')
       if (linkError) return json({ error: linkError.message }, 500)
-      const { error } = await c.from('integration_accounts').delete().eq('user_id', uid)
+      const { error } = await c.from('integration_accounts').delete()
+        .eq('user_id', uid).eq('provider', 'google')
       if (error) return json({ error: error.message }, 500)
       return json({ ok: true })
     }
@@ -299,45 +303,69 @@ async function handler(req: Request, action: string): Promise<Response> {
 
     case 'event': {
       const body = await req.json().catch(() => null)
-      const validTypes = new Set(['project_deadline', 'application_deadline'])
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      const startDate = String(body?.start ?? '').slice(0, 10)
       if (
         !body
-        || !validTypes.has(body.entity_type)
+        || body.entity_type !== 'commitment'
         || !uuid.test(String(body.entity_id ?? ''))
-        || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
-        || typeof body.summary !== 'string'
-        || body.summary.trim().length === 0
-        || body.summary.length > 200
-        || typeof body.idempotency_key !== 'string'
-        || body.idempotency_key.length === 0
-        || body.idempotency_key.length > 300
+        || body.idempotency_key !== `commitment-${body.entity_id}`
+        || (body.update_only !== undefined && typeof body.update_only !== 'boolean')
       ) return json({ error: 'Invalid event body' }, 400)
-      const token = await accessToken(c, uid)
-      if (!token) return json({ error: 'Calendar not connected or expired' }, 401)
+
+      const { data: commitment, error: commitmentError } = await c.from('commitments')
+        .select('id,entity_id,kind,action,due_on,state').eq('user_id', uid).eq('id', body.entity_id).maybeSingle()
+      if (commitmentError) return json({ error: commitmentError.message }, 500)
+      if (!commitment) return json({ error: 'Commitment not found' }, 404)
+      const { data: entity, error: entityError } = await c.from('entities')
+        .select('title,entity_type_id,archived_at').eq('user_id', uid).eq('id', commitment.entity_id).maybeSingle()
+      if (entityError) return json({ error: entityError.message }, 500)
+      if (!entity) return json({ error: 'Commitment record not found' }, 404)
+      if (entity.archived_at) return json({ error: 'This commitment is not approved for Calendar export' }, 400)
+      const { data: entityType, error: typeError } = await c.from('entity_types')
+        .select('singular_name').eq('user_id', uid).eq('id', entity.entity_type_id).maybeSingle()
+      if (typeError) return json({ error: typeError.message }, 500)
+      if (!entityType) return json({ error: 'Commitment type not found' }, 404)
+      const mapped = calendarCommitmentEvent({
+        id: commitment.id,
+        kind: commitment.kind,
+        action: commitment.action,
+        dueOn: commitment.due_on,
+        state: commitment.state,
+        entityTitle: entity.title,
+        typeName: entityType.singular_name,
+      })
+      if (!mapped) return json({ error: 'This commitment is not approved for Calendar export' }, 400)
+
       const { data: existing, error: linkReadError } = await c.from('integration_links')
         .select('external_id').eq('user_id', uid).eq('provider', 'google')
-        .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
+        .eq('entity_type', 'commitment').eq('entity_id', commitment.id)
         .eq('external_type', 'calendar_event').maybeSingle()
       if (linkReadError) return json({ error: linkReadError.message }, 500)
-      const event = allDayEvent(startDate, body.summary.trim(), String(body.description ?? '').slice(0, 2000))
-      // update_only keeps Calendar opt-in: resyncs touch only entities the
+      // update_only keeps Calendar opt-in: resyncs touch only commitments the
       // user already pushed, never creates events for ones they did not.
       if (!existing?.external_id && body.update_only) return json({ ok: true, skipped: true })
-      const res = existing?.external_id
-        ? await cal(token, `/calendar/v3/calendars/primary/events/${existing.external_id}`,
+      const token = await accessToken(c, uid)
+      if (!token) return json({ error: 'Calendar not connected or expired' }, 401)
+      const event = allDayEvent(mapped.start, mapped.summary, mapped.description)
+      const deterministicId = `command${commitment.id.replaceAll('-', '')}`
+      let res = existing?.external_id
+        ? await cal(token, `/calendar/v3/calendars/primary/events/${encodeURIComponent(existing.external_id)}`,
           { method: 'PUT', body: JSON.stringify(event) })
         : await cal(token, '/calendar/v3/calendars/primary/events',
-          { method: 'POST', body: JSON.stringify(event) })
+          { method: 'POST', body: JSON.stringify({ id: deterministicId, ...event }) })
+      if (!existing?.external_id && res.status === 409) {
+        res = await cal(token, `/calendar/v3/calendars/primary/events/${deterministicId}`,
+          { method: 'PUT', body: JSON.stringify(event) })
+      }
       if (!res.ok || !res.data?.id) {
         console.error('calendar event write failed', res.status, res.data)
         return json({ error: 'Event create failed', status: res.status, detail: res.data }, 502)
       }
+      const fingerprint = await sha256b64(`${commitment.due_on}:${commitment.action}`)
       const { error: linkWriteError } = await c.from('integration_links').upsert({
-        user_id: uid, provider: 'google', entity_type: body.entity_type, entity_id: body.entity_id,
+        user_id: uid, provider: 'google', entity_type: 'commitment', entity_id: commitment.id,
         external_type: 'calendar_event', external_id: res.data.id, external_url: res.data.htmlLink ?? null,
-        idempotency_key: body.idempotency_key, fingerprint: body.idempotency_key,
+        idempotency_key: mapped.idempotency_key, fingerprint,
         last_synced_at: new Date().toISOString(),
       }, { onConflict: 'user_id,provider,entity_type,entity_id,external_type' })
       if (linkWriteError) {
@@ -346,24 +374,28 @@ async function handler(req: Request, action: string): Promise<Response> {
         }
         return json({ error: 'Event link could not be saved' }, 500)
       }
+      await recordCalendarActivity(c, uid, commitment.entity_id, commitment.id, 'calendar.exported', res.data.id)
       return json({ ok: true, event: { id: res.data.id, url: res.data.htmlLink ?? null } })
     }
 
-    // Remove the Calendar event linked to a dashboard entity (deadline
-    // cleared, project/application deleted). Best-effort on the Google side
-    // — the link row always goes so state cannot linger.
+    // Remove the event linked to a commitment when it closes or stops being
+    // eligible. Google deletion is best-effort; the local link always goes.
     case 'event_delete': {
       const body = await req.json().catch(() => null)
-      const validTypes = new Set(['project_deadline', 'application_deadline'])
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      if (!body || !validTypes.has(body.entity_type) || !uuid.test(String(body.entity_id ?? ''))) {
+      if (!body || body.entity_type !== 'commitment' || !uuid.test(String(body.entity_id ?? ''))) {
         return json({ error: 'Invalid body' }, 400)
       }
-      const { data: link } = await c.from('integration_links')
+      const { data: commitment, error: commitmentError } = await c.from('commitments')
+        .select('id,entity_id').eq('user_id', uid).eq('id', body.entity_id).maybeSingle()
+      if (commitmentError) return json({ error: commitmentError.message }, 500)
+      if (!commitment) return json({ error: 'Commitment not found' }, 404)
+      const { data: link, error: linkReadError } = await c.from('integration_links')
         .select('external_id').eq('user_id', uid).eq('provider', 'google')
         .eq('external_type', 'calendar_event')
-        .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
+        .eq('entity_type', 'commitment').eq('entity_id', commitment.id)
         .maybeSingle()
+      if (linkReadError) return json({ error: linkReadError.message }, 500)
       if (link?.external_id) {
         const token = await accessToken(c, uid)
         if (token) {
@@ -378,8 +410,9 @@ async function handler(req: Request, action: string): Promise<Response> {
       const { error: unlinkError } = await c.from('integration_links')
         .delete().eq('user_id', uid).eq('provider', 'google')
         .eq('external_type', 'calendar_event')
-        .eq('entity_type', body.entity_type).eq('entity_id', body.entity_id)
+        .eq('entity_type', 'commitment').eq('entity_id', commitment.id)
       if (unlinkError) return json({ error: unlinkError.message }, 500)
+      if (link?.external_id) await recordCalendarActivity(c, uid, commitment.entity_id, commitment.id, 'calendar.unlinked', link.external_id)
       return json({ ok: true })
     }
 

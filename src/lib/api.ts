@@ -1,6 +1,6 @@
 import type {
   ActivityEvent, AgentProposal, CommandData, Commitment, DailyLog, Entity, EntityType, Idea,
-  JobApplication, LearningItem, Person, Project, Settings,
+  JobApplication, LearningItem, Person, Project, RunSummary, Settings, WeekSummary,
 } from '../types'
 import type { CommandClient } from './supabase'
 import {
@@ -10,7 +10,7 @@ import { settings as defaultSettings } from '../domain'
 import {
   applicationToDb, ideaToDb, learningToDb, logToDb, mapActivityEvent, mapAgentProposal, mapApplication,
   mapCommitment, mapEntity, mapEntityType, mapIdea, mapLearning, mapLog, mapPerson,
-  mapProject, mapSettings, personToDb, projectToDb, settingsToDb,
+  mapProject, mapRunSummary, mapSettings, mapWeekSummary, personToDb, projectToDb, settingsToDb,
 } from './mappers'
 
 function throwIfError(result: { error: { message: string } | null }): void {
@@ -41,51 +41,39 @@ export interface RemoteDueItem {
 }
 
 export function exportData(data: CommandData, settings: Settings): string {
-  return JSON.stringify({ exportedAt: new Date().toISOString(), settings, ...data }, null, 2)
+  return JSON.stringify({
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    settings,
+    entityTypes: data.entityTypes,
+    entities: data.entities,
+    commitments: data.commitments,
+    activityEvents: data.activityEvents,
+    agentProposals: data.agentProposals,
+    dailyLogs: data.legacy.logs,
+  }, null, 2)
 }
 
-export type CsvTable = 'logs' | 'applications' | 'people' | 'projects' | 'learning' | 'ideas'
+export function exportTypeCsv(type: EntityType, data: CommandData): string {
+  const columns = [
+    'type_key', 'id', 'title', 'schema_version', 'archived_at', 'created_at', 'updated_at',
+    ...type.fields.map((field) => field.key),
+  ]
+  const rows = data.entities
+    .filter((entity) => entity.entityTypeId === type.id)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
+    .map((entity) => [
+      type.typeKey, entity.id, entity.title, entity.schemaVersion, entity.archivedAt,
+      entity.createdAt, entity.updatedAt, ...type.fields.map((field) => entity.fields[field.key]),
+    ])
+  return [csvLine(columns), ...rows.map(csvLine)].join('\n')
+}
 
-export function exportCsv(kind: CsvTable, data: CommandData): string {
-  const legacy = data.legacy
-  const escape = (value: string | number | boolean | null | undefined): string => {
+function csvLine(row: unknown[]): string {
+  return row.map((value) => {
     const text = value == null ? '' : String(value)
-    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-  }
-  const line = (row: (string | number | boolean | null | undefined)[]) => row.map(escape).join(',')
-
-  switch (kind) {
-    case 'logs':
-      return [
-        line(['day', 'meditation', 'gym', 'diet', 'node_minutes', 'dsa_minutes', 'math_minutes', 'job_minutes', 'note']),
-        ...legacy.logs.map((log) => line([log.day, log.meditation, log.gym, log.diet, log.nodeMinutes, log.dsaMinutes, log.mathMinutes, log.jobMinutes, log.note])),
-      ].join('\n')
-    case 'applications':
-      return [
-        line(['id', 'company', 'role', 'lane', 'channel', 'status', 'applied_on', 'window_closes_on', 'follow_up_on', 'has_referral', 'ctc_lpa', 'referrer_id', 'job_url', 'resume_version', 'resume_drive_url', 'next_action', 'notes']),
-        ...legacy.applications.map((app) => line([app.id, app.company, app.role, app.lane, app.channel, app.status, app.appliedOn, app.windowClosesOn, app.followUpOn, app.hasReferral, app.ctcLpa, app.referrerId, app.jobUrl, app.resumeVersion, app.resumeDriveUrl, app.nextAction, app.notes])),
-      ].join('\n')
-    case 'people':
-      return [
-        line(['id', 'name', 'company', 'email', 'linkedin_url', 'how_known', 'status', 'last_contacted_on', 'next_follow_up_on', 'notes']),
-        ...legacy.people.map((person) => line([person.id, person.name, person.company, person.email, person.linkedinUrl, person.howKnown, person.status, person.lastContactOn, person.nextFollowUpOn, person.notes])),
-      ].join('\n')
-    case 'projects':
-      return [
-        line(['id', 'name', 'type', 'status', 'client', 'payment_status', 'amount', 'currency', 'is_public', 'deadline_on', 'repo_url', 'demo_url', 'drive_folder_url', 'next_action', 'content']),
-        ...legacy.projects.map((project) => line([project.id, project.name, project.type, project.status, project.client, project.paymentStatus, project.amount, project.currency, project.isPublic, project.deadlineOn, project.repoUrl, project.demoUrl, project.driveFolderUrl, project.nextAction, project.content])),
-      ].join('\n')
-    case 'learning':
-      return [
-        line(['id', 'concept', 'stack', 'track', 'item_type', 'confidence', 'difficulty', 'next_review_on', 'last_reviewed_on', 'mastery_hits', 'source_url', 'content']),
-        ...legacy.learning.map((item) => line([item.id, item.concept, item.stack, item.track, item.itemType, item.confidence, item.difficulty, item.nextReviewOn, item.lastReviewedOn, item.masteryHits, item.sourceUrl, item.content])),
-      ].join('\n')
-    case 'ideas':
-      return [
-        line(['id', 'idea', 'problem', 'target_market', 'monetization', 'status', 'next_action']),
-        ...legacy.ideas.map((idea) => line([idea.id, idea.idea, idea.problem, idea.targetMarket, idea.monetization, idea.status, idea.nextAction])),
-      ].join('\n')
-  }
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }).join(',')
 }
 
 export async function loadRemoteData(client: CommandClient): Promise<CommandData> {
@@ -145,6 +133,34 @@ export interface McpClientPermissionGrant {
   permissions: McpPermission[]
 }
 
+export interface McpAuditEntry {
+  id: string
+  clientId: string
+  toolName: string
+  success: boolean
+  errorMessage: string | null
+  durationMs: number
+  inputSummary: Record<string, unknown>
+  createdAt: string
+}
+
+export async function loadMcpAudit(client: CommandClient): Promise<McpAuditEntry[]> {
+  const result = await client.from('mcp_audit_log')
+    .select('id,client_id,tool_name,success,error_message,duration_ms,input_summary,created_at')
+    .order('created_at', { ascending: false }).limit(50)
+  throwIfError(result)
+  return (result.data ?? []).map((row) => ({
+    id: row.id,
+    clientId: row.client_id,
+    toolName: row.tool_name,
+    success: row.success,
+    errorMessage: row.error_message,
+    durationMs: row.duration_ms,
+    inputSummary: row.input_summary as Record<string, unknown>,
+    createdAt: row.created_at,
+  }))
+}
+
 export async function loadMcpClientPermissions(client: CommandClient): Promise<McpClientPermissionGrant[]> {
   const result = await client.from('mcp_client_permissions')
     .select('client_id,can_read_types,can_read_data,can_write_proposals,can_access_people')
@@ -202,6 +218,18 @@ export async function loadV3Today(client: CommandClient, day: string): Promise<u
   const result = await client.rpc('get_v3_today', { p_day: day, p_limit: V3_SCREEN_READ_LIMIT })
   throwIfError(result)
   return result.data
+}
+
+export async function loadV3Week(client: CommandClient, day: string): Promise<WeekSummary> {
+  const result = await client.rpc('get_v3_week', { p_week_start: day })
+  throwIfError(result)
+  return mapWeekSummary(result.data)
+}
+
+export async function loadV3Run(client: CommandClient, day: string): Promise<RunSummary> {
+  const result = await client.rpc('get_v3_run', { p_day: day })
+  throwIfError(result)
+  return mapRunSummary(result.data)
 }
 
 export async function loadV3Due(
@@ -309,6 +337,53 @@ export async function writeV3Commitment(client: CommandClient, commitment: Commi
     p_outcome: commitment.outcome as never,
     p_completed_at: commitment.completedAt as never,
     p_idempotency_key: idempotencyKey,
+  })
+  throwIfError(result)
+}
+
+export async function writeV3PluginOutcome(
+  client: CommandClient,
+  commitment: Commitment,
+  recall: string,
+  nextCommitment: Commitment | null,
+  idempotencyKey: string,
+): Promise<void> {
+  const result = await client.rpc('write_v3_plugin_outcome', {
+    p_commitment_id: commitment.id,
+    p_outcome: commitment.outcome ?? '',
+    p_completed_at: commitment.completedAt as never,
+    p_recall: recall,
+    p_next_commitment_id: (nextCommitment?.id ?? null) as never,
+    p_next_due_on: (nextCommitment?.dueOn ?? null) as never,
+    p_idempotency_key: idempotencyKey,
+  })
+  throwIfError(result)
+}
+
+export async function writeV3EntityType(client: CommandClient, type: EntityType): Promise<void> {
+  const result = await client.rpc('write_v3_entity_type', {
+    p_id: type.id,
+    p_type_key: type.typeKey,
+    p_singular_name: type.singularName,
+    p_plural_name: type.pluralName,
+    p_icon_key: type.iconKey,
+    p_schema_version: type.schemaVersion,
+    p_field_schema: type.fields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      kind: field.kind,
+      required: field.required,
+      list_visible: field.listVisible,
+      filterable: field.filterable,
+      deprecated: field.deprecated,
+      ...(field.kind === 'single_select' ? { options: field.options } : {}),
+    })) as never,
+    p_default_sort_field: type.defaultSortField,
+    p_default_sort_direction: type.defaultSortDirection,
+    p_group_by_field: type.groupByField as never,
+    p_allowed_commitment_kinds: type.allowedCommitmentKinds,
+    p_plugin_key: type.pluginKey as never,
+    p_is_active: type.isActive,
   })
   throwIfError(result)
 }

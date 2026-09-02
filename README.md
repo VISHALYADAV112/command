@@ -37,19 +37,32 @@ the source of truth when older specifications or prototypes conflict.
 - Three daily practice floors for Node, DSA, and Math; historical job-hunt
   minutes remain preserved while weekly outcomes track 15 submitted
   applications and 2 new people contacted.
-- Registry-driven v3 source routes for Today, Due, Browse, and universal Item,
+- Registry-driven v3 source routes for Today, Due, Week, Run, Browse, and universal Item,
   with generic Capture/Edit, Schedule, Outcome, archive/restore, drafts, and
   bounded pagination. These workflows remain off the public production alias
   until the v3 data cutover.
+- A bounded Monday–Sunday Week review shows the three practice budgets, weekly
+  15/2 outcomes, pending future days, proposal activity, and commitment
+  outcomes using `Asia/Kolkata` boundaries.
+- A monthly Run review derives five readiness markers from canonical entities,
+  commitments, and immutable activity. It shows three completed calendar months
+  only when the history is sufficient and never fabricates a trend.
+- Settings administers current targets and the data-only type registry,
+  including versioned fields, browse metadata, commitment kinds, allow-listed
+  behaviour, and disable-without-delete. JSON export is canonical and each
+  registry type has a schema-driven CSV export.
 - Canonical entities and commitments plus immutable activity provenance. Ideas
   migrate to note records tagged `idea`; normal workflows do not expose hard
   delete.
-- Fast daily logging and the existing recall-first learning schedule remain
-  preserved during migration.
+- Fast daily logging and the existing 21/7/3/1 recall schedule now run through
+  the generic behaviour-plugin and Outcome contracts, including an adjustable
+  follow-on review date and atomic provenance.
 - Google sign-in (owner-only via a database signup guard) and Google Calendar:
-  connect/disconnect, live "Today" strip of events; OAuth refresh tokens stored
-  AES-256-GCM encrypted in the database with the key held only server-side.
-- CSP headers, service-worker update prompt, JSON/CSV export, PWA install.
+  connect/disconnect, last verification/sync status, and explicit export of
+  approved canonical commitments. OAuth refresh tokens are stored AES-256-GCM
+  encrypted in the database with the key held only server-side.
+- CSP headers, service-worker update prompt, dynamic JSON/per-type CSV export,
+  and PWA install.
 - Remote MCP access through Supabase OAuth 2.1. The Phase 6 source now provides
   five generic registry-aware tools, narrow read/write/people permissions, safe
   bounded queries, and an approval-gated Agent inbox. Production retains the
@@ -100,10 +113,16 @@ with stale rejection kept available
 28–32. owner/client MCP application permissions, first-party-only grant
 management, direct OAuth database isolation, and guarded UI mutation RPCs,
 including the atomic capture/outcome paths
+33. bounded Phase 7 Run summary with five fixed readiness markers and three
+completed owner-local calendar months
+34–37. Phase 7 first-party type administration, atomic spaced-repetition
+outcomes and follow-ons, plugin-schema enforcement, and exact retry results
 
 The `google-calendar` edge function handles the PKCE flow, idempotent event
-writes, token revocation/refresh, request throttling, and request-scoped CORS;
-it validates the user JWT itself. `supabase/config.toml` records the required
+writes for owner-approved deadline, milestone, and mock-interview commitments,
+unlink/resync, token revocation/refresh, request throttling, and request-scoped
+CORS; it validates the user JWT itself and derives event content from owned
+canonical rows. `supabase/config.toml` records the required
 `verify_jwt = false` deployment mode because the OAuth callback is protected by
 one-time state and PKCE rather than an app JWT.
 

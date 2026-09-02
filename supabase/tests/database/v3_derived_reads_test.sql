@@ -1,6 +1,6 @@
 begin;
 
-select plan(32);
+select plan(38);
 
 select ok(
   exists (
@@ -227,8 +227,32 @@ begin
     '{"title":"Pending application","fields":{},"schema_version":1}'::jsonb,
     null, 'read-pending-proposal', null
   );
+  perform public.create_agent_proposal(
+    '11111111-1111-4111-8111-111111111111', 'read-client', 'capture',
+    '33333333-3333-4333-8333-333333333333', null, null,
+    '{"title":"Approved application","fields":{},"schema_version":1}'::jsonb,
+    null, 'read-approved-proposal', null
+  );
+  perform public.create_agent_proposal(
+    '11111111-1111-4111-8111-111111111111', 'read-client', 'capture',
+    '33333333-3333-4333-8333-333333333333', null, null,
+    '{"title":"Rejected application","fields":{},"schema_version":1}'::jsonb,
+    null, 'read-rejected-proposal', null
+  );
 end;
 $$;
+
+set local session_replication_role = replica;
+update public.agent_proposals
+set created_at = case idempotency_key
+  when 'read-pending-proposal' then '2026-08-31T09:00:00+05:30'::timestamptz
+  when 'read-approved-proposal' then '2026-09-01T09:00:00+05:30'::timestamptz
+  when 'read-rejected-proposal' then '2026-09-03T09:00:00+05:30'::timestamptz
+end
+where idempotency_key in (
+  'read-pending-proposal', 'read-approved-proposal', 'read-rejected-proposal'
+);
+set local session_replication_role = origin;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
@@ -326,7 +350,7 @@ select is(
 );
 select is(
   (public.get_v3_today('2026-08-31', 2) ->> 'pending_proposals')::integer,
-  1,
+  3,
   'Today exposes only the pending proposal indicator count'
 );
 select results_eq(
@@ -392,6 +416,78 @@ select throws_ok(
   '22023',
   'invalid readiness range',
   'readiness inputs reject unbounded date ranges'
+);
+
+select lives_ok(
+  $$
+    select public.decide_agent_proposal(
+      (select id from public.agent_proposals where idempotency_key = 'read-approved-proposal'),
+      'approve', null, null, 'Approved for Week coverage'
+    )
+  $$,
+  'Week fixture approves a proposal through the review gate'
+);
+select lives_ok(
+  $$
+    select public.decide_agent_proposal(
+      (select id from public.agent_proposals where idempotency_key = 'read-rejected-proposal'),
+      'reject', null, null, 'Rejected for Week coverage'
+    )
+  $$,
+  'Week fixture rejects a proposal through the review gate'
+);
+
+reset role;
+set local session_replication_role = replica;
+update public.agent_proposals
+set decided_at = case idempotency_key
+  when 'read-approved-proposal' then '2026-09-02T09:00:00+05:30'::timestamptz
+  when 'read-rejected-proposal' then '2026-09-04T09:00:00+05:30'::timestamptz
+end
+where idempotency_key in ('read-approved-proposal', 'read-rejected-proposal');
+set local session_replication_role = origin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+select ok(
+  (
+    select bool_and(
+      (day_row ->> 'is_future')::boolean
+        = ((day_row ->> 'day')::date > (now() at time zone 'Asia/Kolkata')::date)
+    )
+    from jsonb_array_elements(public.get_v3_week('2026-08-31') -> 'days') day_row
+  ),
+  'Week derives future-day flags from the owner''s Asia/Kolkata local date'
+);
+select is(
+  (public.get_v3_week('2026-08-31') #>> '{commitments,missed}')::integer,
+  (
+    select count(*)::integer
+    from public.commitments commitment
+    where commitment.user_id = '11111111-1111-4111-8111-111111111111'
+      and commitment.state = 'open'
+      and commitment.due_on between '2026-08-31'
+        and least('2026-09-06'::date, (now() at time zone 'Asia/Kolkata')::date - 1)
+  ),
+  'Week counts only open commitments missed before the local current day'
+);
+select results_eq(
+  $$
+    select summary #>> '{proposals,proposed}', summary #>> '{proposals,approved}',
+      summary #>> '{proposals,rejected}'
+    from (select public.get_v3_week('2026-08-31') summary) value
+  $$,
+  $$ values ('3', '1', '1') $$,
+  'Week exposes proposal creation and reviewed decision activity'
+);
+select ok(
+  jsonb_array_length(public.get_v3_week('1900-01-01') -> 'days') = 7
+    and (public.get_v3_week('1900-01-01') #>> '{practice,node,minutes}')::integer = 0
+    and (public.get_v3_week('1900-01-01') #>> '{practice,dsa,minutes}')::integer = 0
+    and (public.get_v3_week('1900-01-01') #>> '{practice,math,minutes}')::integer = 0
+    and (public.get_v3_week('1900-01-01') ->> 'applications_submitted')::integer = 0
+    and (public.get_v3_week('1900-01-01') ->> 'people_contacted')::integer = 0,
+  'Week keeps its bounded seven-day structure when the week has no activity'
 );
 
 select * from finish();

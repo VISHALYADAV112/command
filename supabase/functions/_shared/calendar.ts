@@ -35,3 +35,31 @@ export function todayWindow(now = new Date()): { timeMin: string; timeMax: strin
     timeMax: new Date(start.getTime() + 86_400_000).toISOString(),
   }
 }
+
+export interface CalendarCommitmentInput {
+  id: string
+  kind: string
+  action: string
+  dueOn: string
+  state: string
+  entityTitle: string
+  typeName: string
+}
+
+export function isCalendarCommitment(input: Pick<CalendarCommitmentInput, 'kind' | 'action' | 'state'>): boolean {
+  if (input.state !== 'open') return false
+  if (input.kind === 'deadline' || input.kind === 'milestone') return true
+  return input.kind === 'drill' && /^mock interview(?:$|[-\s:])/i.test(input.action.trim())
+}
+
+export function calendarCommitmentEvent(input: CalendarCommitmentInput) {
+  if (!isCalendarCommitment(input)) return null
+  return {
+    summary: `${input.entityTitle} — ${input.action}`.slice(0, 200),
+    description: `${input.typeName} · ${input.kind} · Command commitment`,
+    start: input.dueOn,
+    entity_type: 'commitment' as const,
+    entity_id: input.id,
+    idempotency_key: `commitment-${input.id}`,
+  }
+}

@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Commitment, Entity, LearningItem } from '../types'
 import { createBuiltInEntityTypes } from '../v3Registry'
 import {
-  decideAgentProposal, loadMcpClientPermissions, loadRemoteData, loadV3Browse, loadV3BrowsePage, loadV3Due, loadV3DuePage, loadV3Item, loadV3Registry, loadV3Today,
+  decideAgentProposal, loadMcpAudit, loadMcpClientPermissions, loadRemoteData, loadV3Browse, loadV3BrowsePage, loadV3Due, loadV3DuePage, loadV3Item, loadV3Registry, loadV3Run, loadV3Today, loadV3Week,
   removeMcpClientPermissions, saveMcpClientPermissions,
-  REMOTE_READ_LIMIT, upsertLearning, V3_PAGE_SIZE, V3_SCREEN_READ_LIMIT, writeV3Capture,
+  REMOTE_READ_LIMIT, upsertLearning, V3_PAGE_SIZE, V3_SCREEN_READ_LIMIT, writeV3Capture, writeV3EntityType, writeV3PluginOutcome,
 } from './api'
 import type { CommandClient } from './supabase'
 import { DEFAULT_MCP_PERMISSIONS, MCP_PERMISSION } from '../../supabase/functions/_shared/mcp-permissions'
@@ -97,6 +97,67 @@ describe('remote reads', () => {
       p_limit: V3_SCREEN_READ_LIMIT,
       p_offset: 20,
     })
+  })
+
+  it('loads and maps the bounded Week contract', async () => {
+    const weekDays = ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06']
+    const days = weekDays.map((day, index) => ({
+      day,
+      is_future: index > 2,
+      node_minutes: index === 0 ? 40 : null,
+      dsa_minutes: index === 0 ? 70 : null,
+      math_minutes: index === 0 ? 20 : null,
+      meditation: index === 0 ? true : null,
+      gym: index === 0 ? false : null,
+      diet: index === 0 ? 'on_track' : null,
+    }))
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      week_start: '2026-08-31', week_end: '2026-09-06', days,
+      practice: {
+        node: { minutes: 40, target: 210 }, dsa: { minutes: 70, target: 420 }, math: { minutes: 20, target: 210 },
+      },
+      applications_submitted: 1, application_target: 15,
+      people_contacted: 1, people_target: 2,
+      commitments: { completed: 1, cancelled: 1, missed: 1 },
+      proposals: { proposed: 3, approved: 1, rejected: 1 },
+    }, error: null })
+    const client = { rpc } as unknown as CommandClient
+
+    await expect(loadV3Week(client, '2026-09-02')).resolves.toMatchObject({
+      weekStart: '2026-08-31', weekEnd: '2026-09-06',
+      applicationsSubmitted: 1, peopleContacted: 1,
+      commitments: { completed: 1, cancelled: 1, missed: 1 },
+      proposals: { proposed: 3, approved: 1, rejected: 1 },
+    })
+    expect(rpc).toHaveBeenCalledWith('get_v3_week', { p_week_start: '2026-09-02' })
+  })
+
+  it('loads and maps the fixed-size Run contract', async () => {
+    const history = [
+      { month: '2026-06', value: 1 }, { month: '2026-07', value: 1 }, { month: '2026-08', value: 2 },
+    ]
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      as_of_day: '2026-09-02', history_start: '2026-06-01', history_end: '2026-08-31',
+      markers: {
+        public_portfolio: { current: 2, target: 3, history_ready: true, history },
+        dsa_patterns: { current: 2, covered: 3, target: 24, history_ready: true, history },
+        mock_interviews: { current: 2, target: 10, history_ready: true, history },
+        application_conversion: {
+          current: 66.7, numerator: 2, denominator: 3, target: 25,
+          history_ready: true, history: history.map((point) => ({ ...point, value: point.value * 10 })),
+        },
+        referral_conversations: { current: 2, target: 12, history_ready: true, history },
+      },
+    }, error: null })
+    const client = { rpc } as unknown as CommandClient
+
+    await expect(loadV3Run(client, '2026-09-02')).resolves.toMatchObject({
+      asOfDay: '2026-09-02', historyStart: '2026-06-01', historyEnd: '2026-08-31',
+      publicPortfolio: { current: 2, target: 3, historyReady: true },
+      dsaPatterns: { current: 2, covered: 3, target: 24 },
+      applicationConversion: { current: 66.7, numerator: 2, denominator: 3, target: 25 },
+    })
+    expect(rpc).toHaveBeenCalledWith('get_v3_run', { p_day: '2026-09-02' })
   })
 
   it('requests one extra Due row to expose bounded page availability', async () => {
@@ -216,6 +277,20 @@ describe('MCP client permissions', () => {
     await removeMcpClientPermissions(client, 'client-123')
     expect(removeEq).toHaveBeenCalledWith('client_id', 'client-123')
   })
+
+  it('loads bounded private audit history for client activity display', async () => {
+    const rows = [{
+      id: crypto.randomUUID(), client_id: 'client-123', tool_name: 'command_query', success: true,
+      error_message: null, duration_ms: 12, input_summary: { type: 'project' }, created_at: '2026-09-02T06:00:00.000Z',
+    }]
+    const limit = vi.fn().mockResolvedValue({ data: rows, error: null })
+    const client = { from: () => ({ select: () => ({ order: () => ({ limit }) }) }) } as unknown as CommandClient
+    await expect(loadMcpAudit(client)).resolves.toEqual([{
+      id: rows[0].id, clientId: 'client-123', toolName: 'command_query', success: true,
+      errorMessage: null, durationMs: 12, inputSummary: { type: 'project' }, createdAt: '2026-09-02T06:00:00.000Z',
+    }])
+    expect(limit).toHaveBeenCalledWith(50)
+  })
 })
 
 describe('v3 transactional capture', () => {
@@ -237,6 +312,39 @@ describe('v3 transactional capture', () => {
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(rpc).toHaveBeenCalledWith('write_v3_capture', expect.objectContaining({
       p_entity_id: entity.id, p_commitment_id: commitment.id, p_idempotency_key: 'capture-request-001',
+    }))
+  })
+
+  it('sends a plugin outcome and follow-on through one atomic RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {}, error: null })
+    const client = { rpc } as unknown as CommandClient
+    const commitment: Commitment = {
+      id: crypto.randomUUID(), entityId: crypto.randomUUID(), kind: 'review', action: 'Review invariant',
+      dueOn: '2026-09-02', state: 'completed', outcome: 'Instant recall',
+      completedAt: '2026-09-02T06:00:00.000Z', originSource: 'ui',
+    }
+    const next = { ...commitment, id: crypto.randomUUID(), dueOn: '2026-09-23', state: 'open' as const, outcome: null, completedAt: null }
+    await writeV3PluginOutcome(client, commitment, 'instant', next, 'plugin-outcome-001')
+    expect(rpc).toHaveBeenCalledWith('write_v3_plugin_outcome', {
+      p_commitment_id: commitment.id, p_outcome: 'Instant recall', p_completed_at: commitment.completedAt,
+      p_recall: 'instant', p_next_commitment_id: next.id, p_next_due_on: next.dueOn,
+      p_idempotency_key: 'plugin-outcome-001',
+    })
+
+    await writeV3PluginOutcome(client, commitment, 'instant', null, 'plugin-mastery-001')
+    expect(rpc).toHaveBeenLastCalledWith('write_v3_plugin_outcome', expect.objectContaining({
+      p_next_commitment_id: null, p_next_due_on: null, p_idempotency_key: 'plugin-mastery-001',
+    }))
+  })
+
+  it('writes registry field flags in the database schema shape', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {}, error: null })
+    const client = { rpc } as unknown as CommandClient
+    const type = createBuiltInEntityTypes()[4]
+    await writeV3EntityType(client, type)
+    expect(rpc).toHaveBeenCalledWith('write_v3_entity_type', expect.objectContaining({
+      p_id: type.id, p_type_key: 'note', p_schema_version: 2,
+      p_field_schema: expect.arrayContaining([expect.objectContaining({ key: 'tag', list_visible: true, filterable: true })]),
     }))
   })
 })

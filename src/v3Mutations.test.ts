@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createDemoData } from './data'
 import { createV3Mutations } from './v3Mutations'
 import type { CommandData, Commitment, Entity } from './types'
+import { spacedRepetitionPlan } from './v3Plugins'
 
 function harness(data: CommandData) {
   const dataRef = { current: data as CommandData | null }
@@ -68,5 +69,24 @@ describe('v3 optimistic mutations', () => {
     expect(dataRef.current?.entities.some((item) => item.id === entity.id)).toBe(true)
     expect(dataRef.current?.commitments).toContainEqual(commitment)
     expect(dataRef.current?.activityEvents.some((event) => event.entityId === entity.id && event.eventType === 'application.submitted')).toBe(true)
+  })
+
+  it('applies a plugin outcome and follow-on as one optimistic mutation', () => {
+    const data = createDemoData(new Date('2026-09-02T06:00:00.000Z'))
+    const { dataRef, setData, mutations } = harness(data)
+    const type = data.entityTypes.find((item) => item.typeKey === 'learning')!
+    const entity = data.entities.find((item) => item.entityTypeId === type.id)!
+    const commitment = data.commitments.find((item) => item.entityId === entity.id && item.kind === 'review')!
+    const plan = spacedRepetitionPlan(entity, 'blank', new Date('2026-09-02T06:00:00.000Z'))
+    const completed = { ...commitment, state: 'completed' as const, outcome: 'Could not recall', completedAt: '2026-09-02T06:00:00.000Z' }
+    const next = { ...commitment, id: crypto.randomUUID(), dueOn: '2026-09-03' }
+
+    expect(mutations.saveOutcome({ commitment: completed, recall: 'blank', entity: plan.entity, nextCommitment: next })).toBe(true)
+    expect(setData).toHaveBeenCalledTimes(1)
+    expect(dataRef.current?.entities.find((item) => item.id === entity.id)?.fields).toMatchObject({ last_reviewed_on: '2026-09-02' })
+    expect(dataRef.current?.commitments).toEqual(expect.arrayContaining([completed, next]))
+    expect(dataRef.current?.activityEvents.slice(0, 3).map((event) => event.eventType)).toEqual([
+      'commitment.created', 'entity.updated', 'commitment.completed',
+    ])
   })
 })

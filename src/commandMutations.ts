@@ -7,10 +7,6 @@ import {
   deleteRow, saveIdeaRow, savePersonRow, saveProjectRow, saveRemoteSettings,
   upsertApplicationRow, upsertLearning, upsertLog,
 } from './lib/api'
-import {
-  applicationDeadlineEvent, createCalendarEvent, deleteCalendarEvent,
-  projectDeadlineEvent, type DeadlineEventPayload,
-} from './lib/calendar'
 import { writeStoredSettings } from './lib/localCache'
 
 interface Options {
@@ -53,18 +49,6 @@ export function createCommandMutations(options: Options) {
       : [item, ...list]
   }
 
-  function unlinkDeadline(entityType: 'project_deadline' | 'application_deadline', entityId: string) {
-    if (mode !== 'live' || !session) return
-    void deleteCalendarEvent(session, { entity_type: entityType, entity_id: entityId })
-      .catch((error: unknown) => sync.fail(error, 'Calendar cleanup failed.'))
-  }
-
-  function resyncDeadline(payload: DeadlineEventPayload) {
-    if (mode !== 'live' || !session) return
-    void createCalendarEvent(session, { ...payload, update_only: true })
-      .catch((error: unknown) => sync.fail(error, 'Calendar resync failed.'))
-  }
-
   function saveLog(log: DailyLog): boolean {
     if (!canMutate()) return false
     update((data) => ({
@@ -77,12 +61,7 @@ export function createCommandMutations(options: Options) {
 
   function saveApplication(app: JobApplication): boolean {
     if (!canMutate()) return false
-    update((data) => {
-      const previous = data.legacy.applications.find((item) => item.id === app.id)
-      if (previous?.windowClosesOn && !app.windowClosesOn) unlinkDeadline('application_deadline', app.id)
-      else if (previous?.windowClosesOn && app.windowClosesOn !== previous.windowClosesOn) resyncDeadline(applicationDeadlineEvent(app))
-      return { ...data, legacy: { ...data.legacy, applications: replace(data.legacy.applications, app) } }
-    })
+    update((data) => ({ ...data, legacy: { ...data.legacy, applications: replace(data.legacy.applications, app) } }))
     remote((client, userId) => upsertApplicationRow(client, app, userId))
     return true
   }
@@ -90,7 +69,6 @@ export function createCommandMutations(options: Options) {
   function deleteApplication(id: string): boolean {
     if (!canMutate()) return false
     update((data) => ({ ...data, legacy: { ...data.legacy, applications: data.legacy.applications.filter((item) => item.id !== id) } }))
-    unlinkDeadline('application_deadline', id)
     remote((client) => deleteRow(client, 'job_applications', id))
     return true
   }
@@ -111,12 +89,7 @@ export function createCommandMutations(options: Options) {
 
   function saveProject(project: Project): boolean {
     if (!canMutate()) return false
-    update((data) => {
-      const previous = data.legacy.projects.find((item) => item.id === project.id)
-      if (previous?.deadlineOn && !project.deadlineOn) unlinkDeadline('project_deadline', project.id)
-      else if (previous?.deadlineOn && project.deadlineOn !== previous.deadlineOn) resyncDeadline(projectDeadlineEvent(project))
-      return { ...data, legacy: { ...data.legacy, projects: replace(data.legacy.projects, project) } }
-    })
+    update((data) => ({ ...data, legacy: { ...data.legacy, projects: replace(data.legacy.projects, project) } }))
     remote((client, userId) => saveProjectRow(client, project, userId))
     return true
   }
@@ -124,7 +97,6 @@ export function createCommandMutations(options: Options) {
   function deleteProject(id: string): boolean {
     if (!canMutate()) return false
     update((data) => ({ ...data, legacy: { ...data.legacy, projects: data.legacy.projects.filter((item) => item.id !== id) } }))
-    unlinkDeadline('project_deadline', id)
     remote((client) => deleteRow(client, 'projects', id))
     return true
   }

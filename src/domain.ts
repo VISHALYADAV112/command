@@ -2,6 +2,7 @@ import type { DailyLog, JobApplication, LearningItem, Person, PracticeKey, Recal
 import {
   COMMAND_TIMEZONE, DEFAULT_FLOORS, indiaDateKey, meetsFloor,
 } from '../supabase/functions/_shared/command-domain'
+import { recallSchedule } from './v3Plugins'
 
 export { COMMAND_TIMEZONE }
 
@@ -122,17 +123,13 @@ export function dayDistance(from: Date, toKey: string): number {
 }
 
 export function applyRecall(item: LearningItem, recall: Recall, today: Date): LearningItem {
-  const interval = recall === 'instant' ? 21 : recall === 'effort' ? 7 : recall === 'struggled' ? 3 : 1
-  const confidence = Math.max(1, Math.min(5,
-    item.confidence + (recall === 'instant' ? 1 : recall === 'struggled' ? -1 : recall === 'blank' ? -2 : 0),
-  )) as LearningItem['confidence']
-  const masteryHits = confidence === 5 && recall === 'instant' ? item.masteryHits + 1 : 0
+  const result = recallSchedule(item.confidence, item.masteryHits, recall, today)
   return {
     ...item,
-    confidence,
-    masteryHits,
-    lastReviewedOn: dateKey(today),
-    nextReviewOn: masteryHits >= 2 ? null : dateKey(addDays(dateFromKey(dateKey(today)), interval)),
+    confidence: result.confidence as LearningItem['confidence'],
+    masteryHits: result.masteryHits,
+    lastReviewedOn: result.reviewedOn,
+    nextReviewOn: result.suggestedNextOn,
   }
 }
 

@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
-import type { JobApplication, Project } from '../types'
+import type { Commitment, Entity, EntityType } from '../types'
+import { calendarCommitmentEvent, isCalendarCommitment } from '../../supabase/functions/_shared/calendar'
 import { edgeBaseUrl } from './config'
 
 const BASE = edgeBaseUrl()
@@ -23,6 +24,7 @@ async function call<T>(session: Session, action: string, init?: { method?: strin
 export interface CalendarStatus {
   connected: boolean
   account: { provider: string; status: string; last_verified_at: string | null; scopes: string[] } | null
+  last_synced_at: string | null
 }
 
 export interface CalendarEvent {
@@ -51,47 +53,47 @@ export async function listTodayEvents(session: Session): Promise<CalendarEvent[]
   return result.events ?? []
 }
 
-export interface DeadlineEventPayload {
-  summary: string
-  description: string
-  start: string
-  entity_type: 'project_deadline' | 'application_deadline'
+export interface CommitmentEventPayload {
+  entity_type: 'commitment'
   entity_id: string
   idempotency_key: string
   update_only?: boolean
 }
 
-export async function createCalendarEvent(session: Session, payload: DeadlineEventPayload): Promise<void> {
+export async function createCalendarEvent(session: Session, payload: CommitmentEventPayload): Promise<void> {
   await call<{ ok: boolean }>(session, 'event', { method: 'POST', body: payload })
 }
 
-// One shape per pushed deadline so the manual button and the automatic
-// resync on date change stay in lockstep.
-export function projectDeadlineEvent(project: Project): DeadlineEventPayload {
-  return {
-    summary: `${project.name} — deadline`,
-    description: `${project.type} project deadline`,
-    start: `${project.deadlineOn}T00:00:00`,
-    entity_type: 'project_deadline',
-    entity_id: project.id,
-    idempotency_key: `project-${project.id}-${project.deadlineOn}`,
-  }
-}
-
-export function applicationDeadlineEvent(app: JobApplication): DeadlineEventPayload {
-  return {
-    summary: `${app.company} — window closes`,
-    description: `${app.role} application window closes today`,
-    start: `${app.windowClosesOn}T00:00:00`,
-    entity_type: 'application_deadline',
-    entity_id: app.id,
-    idempotency_key: `application-${app.id}-${app.windowClosesOn}`,
-  }
+export function commitmentEventPayload(
+  commitment: Commitment,
+  entity: Entity,
+  type: EntityType,
+  updateOnly = false,
+): CommitmentEventPayload | null {
+  const event = calendarCommitmentEvent({
+    id: commitment.id,
+    kind: commitment.kind,
+    action: commitment.action,
+    dueOn: commitment.dueOn,
+    state: commitment.state,
+    entityTitle: entity.title,
+    typeName: type.singularName,
+  })
+  return event ? {
+    entity_type: event.entity_type,
+    entity_id: event.entity_id,
+    idempotency_key: event.idempotency_key,
+    ...(updateOnly ? { update_only: true } : {}),
+  } : null
 }
 
 export async function deleteCalendarEvent(
   session: Session,
-  payload: { entity_type: 'project_deadline' | 'application_deadline'; entity_id: string },
+  payload: { entity_type: 'commitment'; entity_id: string },
 ): Promise<void> {
   await call<{ ok: boolean }>(session, 'event_delete', { method: 'POST', body: payload })
+}
+
+export function canExportCommitment(commitment: Commitment): boolean {
+  return isCalendarCommitment(commitment)
 }

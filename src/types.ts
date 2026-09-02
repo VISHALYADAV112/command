@@ -23,6 +23,56 @@ export interface Settings {
   }
 }
 
+export type WeekPracticeKey = Exclude<PracticeKey, 'job'>
+
+export interface WeekDaySummary {
+  day: string
+  isFuture: boolean
+  hasLog: boolean
+  nodeMinutes: number | null
+  dsaMinutes: number | null
+  mathMinutes: number | null
+  meditation: boolean | null
+  gym: boolean | null
+  diet: Diet
+}
+
+export interface WeekSummary {
+  weekStart: string
+  weekEnd: string
+  days: WeekDaySummary[]
+  practice: Record<WeekPracticeKey, { minutes: number; target: number }>
+  applicationsSubmitted: number
+  applicationTarget: number
+  peopleContacted: number
+  peopleTarget: number
+  commitments: { completed: number; cancelled: number; missed: number }
+  proposals: { proposed: number; approved: number; rejected: number }
+}
+
+export interface RunHistoryPoint {
+  month: string
+  value: number | null
+}
+
+export interface RunMetric {
+  current: number | null
+  target: number
+  historyReady: boolean
+  history: RunHistoryPoint[]
+}
+
+export interface RunSummary {
+  asOfDay: string
+  historyStart: string
+  historyEnd: string
+  publicPortfolio: RunMetric
+  dsaPatterns: RunMetric & { covered: number }
+  mockInterviews: RunMetric
+  applicationConversion: RunMetric & { numerator: number; denominator: number }
+  referralConversations: RunMetric
+}
+
 export type ApplicationStatus =
   | 'researching'
   | 'applied'
@@ -159,6 +209,13 @@ export interface Commitment {
   outcome: string | null
   completedAt: string | null
   originSource: MutationSource
+}
+
+export interface OutcomeSubmission {
+  commitment: Commitment
+  recall: Recall | null
+  entity: Entity | null
+  nextCommitment: Commitment | null
 }
 
 export interface ActivityEvent {

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { mcpEndpoint } from './lib/config'
 import { getSupabase } from './lib/supabase'
 import { ConfirmSheet } from './ui'
-import { MCP_PERMISSION_LABELS } from '../supabase/functions/_shared/mcp-permissions'
+import { MCP_PERMISSION_LABELS, MCP_PERMISSIONS, type McpPermission } from '../supabase/functions/_shared/mcp-permissions'
 import {
-  loadMcpClientPermissions, removeMcpClientPermissions, type McpClientPermissionGrant,
+  loadMcpAudit, loadMcpClientPermissions, removeMcpClientPermissions, saveMcpClientPermissions,
+  type McpAuditEntry, type McpClientPermissionGrant,
 } from './lib/api'
 
 interface Grant {
@@ -13,27 +15,48 @@ interface Grant {
   granted_at: string
 }
 
-export function McpConnections({ enabled }: { enabled: boolean }) {
+export function McpConnections({ session }: { session: Session | null }) {
   const [grants, setGrants] = useState<Grant[]>([])
   const [permissions, setPermissions] = useState<McpClientPermissionGrant[]>([])
+  const [audit, setAudit] = useState<McpAuditEntry[]>([])
   const [error, setError] = useState<string | null>(null)
   const [revoking, setRevoking] = useState<Grant | null>(null)
   const [copied, setCopied] = useState(false)
 
   function load() {
     const client = getSupabase()
-    if (!enabled || !client) return
-    void Promise.all([client.auth.oauth.listGrants(), loadMcpClientPermissions(client)])
-      .then(([grantResult, permissionRows]) => {
+    if (!session || !client) return
+    void Promise.all([client.auth.oauth.listGrants(), loadMcpClientPermissions(client), loadMcpAudit(client)])
+      .then(([grantResult, permissionRows, auditRows]) => {
         if (grantResult.error) setError(grantResult.error.message)
         else {
           setGrants((grantResult.data ?? []) as Grant[])
           setPermissions(permissionRows)
+          setAudit(auditRows)
         }
       }).catch(() => setError('Could not load AI client permissions.'))
   }
 
-  useEffect(load, [enabled])
+  useEffect(load, [session])
+
+  function togglePermission(clientId: string, permission: McpPermission, checked: boolean) {
+    setPermissions((current) => {
+      const existing = current.find((grant) => grant.clientId === clientId)
+      const next = checked
+        ? [...(existing?.permissions ?? []), permission]
+        : (existing?.permissions ?? []).filter((item) => item !== permission)
+      return [...current.filter((grant) => grant.clientId !== clientId), { clientId, permissions: [...new Set(next)] }]
+    })
+  }
+
+  async function savePermissions(clientId: string) {
+    const client = getSupabase()
+    if (!client || !session) return
+    setError(null)
+    try {
+      await saveMcpClientPermissions(client, session.user.id, clientId, permissionsFor(permissions, clientId))
+    } catch { setError('Could not update this client’s Command permissions.') }
+  }
 
   async function revoke() {
     const client = getSupabase()
@@ -58,21 +81,33 @@ export function McpConnections({ enabled }: { enabled: boolean }) {
   return <>
     <div className="settings-group">
       <h3>AI connections · MCP</h3>
-      {enabled ? <>
+      {session ? <>
         <p className="settings-hint">Use this remote MCP endpoint in a compatible AI client.</p>
+        <p className="settings-hint">OAuth scopes identify you. The Command permissions below separately control registry reads, data reads, and reviewable proposals; they never grant direct database or Calendar writes.</p>
         <div className="mcp-endpoint"><code>{mcpEndpoint()}</code><button className="secondary-button" type="button" onClick={copyEndpoint}>{copied ? 'Copied' : 'Copy'}</button></div>
         {error && <p className="settings-error" role="status">{error}</p>}
-        {grants.length === 0 ? <p className="settings-status">No AI clients connected.</p> : <div className="mcp-grants">{grants.map((grant) => <div key={grant.client.id}>
-          <span><strong>{grant.client.name || 'AI client'}</strong><small>{permissionLabels(permissions, grant.client.id)}</small></span>
-          <button className="secondary-button" type="button" onClick={() => setRevoking(grant)}>Revoke</button>
+        {grants.length === 0 ? <p className="settings-status">No AI clients connected.</p> : <div className="mcp-grants">{grants.map((grant) => <div className="mcp-grant" key={grant.client.id}>
+          <span><strong>{grant.client.name || 'AI client'}</strong><small>Identity grant · {grant.scopes.join(' · ') || 'identity only'}</small><small>{lastActivity(audit, grant.client.id)}</small></span>
+          <fieldset className="mcp-permission-editor"><legend>Command application permissions</legend>{MCP_PERMISSIONS.map((permission) => <label className="check-row" key={permission}><input type="checkbox" checked={permissionsFor(permissions, grant.client.id).includes(permission)} onChange={(event) => togglePermission(grant.client.id, permission, event.target.checked)} />{MCP_PERMISSION_LABELS[permission]}</label>)}</fieldset>
+          <span className="inline-actions"><button className="secondary-button" type="button" onClick={() => void savePermissions(grant.client.id)}>Save permissions</button><button className="secondary-button" type="button" onClick={() => setRevoking(grant)}>Revoke</button></span>
         </div>)}</div>}
       </> : <p className="settings-status">Available after signing in.</p>}
+    </div>
+    <div className="settings-group">
+      <h3>Agent audit</h3>
+      {!session ? <p className="settings-status">Available after signing in.</p> : audit.length === 0 ? <p className="settings-status">No MCP activity recorded.</p> : <ol className="audit-list">{audit.slice(0, 20).map((entry) => <li key={entry.id}><strong>{entry.toolName}</strong><span>{entry.success ? 'Succeeded' : 'Failed'} · {entry.durationMs}ms · {entry.clientId}</span><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</time><code>{JSON.stringify(entry.inputSummary)}</code>{entry.errorMessage && <small>{entry.errorMessage}</small>}</li>)}</ol>}
     </div>
     {revoking && <ConfirmSheet title={`Revoke ${revoking.client.name || 'AI client'}?`} detail="Its current Command access and refresh tokens will stop working." confirmLabel="Revoke access" onClose={() => setRevoking(null)} onConfirm={() => void revoke()} />}
   </>
 }
 
-function permissionLabels(grants: McpClientPermissionGrant[], clientId: string): string {
-  const permissions = grants.find((grant) => grant.clientId === clientId)?.permissions ?? []
-  return permissions.map((permission) => MCP_PERMISSION_LABELS[permission]).join(' · ') || 'No Command permissions'
+function permissionsFor(grants: McpClientPermissionGrant[], clientId: string): McpPermission[] {
+  return grants.find((grant) => grant.clientId === clientId)?.permissions ?? []
+}
+
+function lastActivity(audit: McpAuditEntry[], clientId: string): string {
+  const entry = audit.find((item) => item.clientId === clientId)
+  return entry
+    ? `Last activity · ${new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`
+    : 'No recorded tool activity'
 }

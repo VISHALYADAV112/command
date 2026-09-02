@@ -96,10 +96,18 @@ the transactional review RPC. Restrictive RLS policies deny OAuth-client tokens
 direct access to public user tables and guarded UI RPCs; the MCP Edge Function
 uses its service credential with an explicit owner filter. The Calendar
 function also refuses connected-client tokens, so Calendar writes remain a
-separate, first-party action.
+separate, first-party action. Its manual export accepts only owned, open
+canonical commitments that are deadlines, milestones, or mock-interview
+drills; event content is re-read server-side, existing links resync
+idempotently, and closing or archiving the source unlinks the event. Google
+refresh tokens remain AES-256-GCM encrypted with the edge-only
+`GOOGLE_TOKEN_KEY`.
 
-Migrations `0026`–`0032` are local-only Phase 6 work. They have not been applied
-to production, and neither v3 Edge Function has been deployed for this phase.
+Migrations `0026`–`0032` are local-only Phase 6 work. Phase 7 migrations
+`0033`–`0037` add the bounded Run read, registry administration, atomic plugin
+outcomes, plugin-schema enforcement, and exact retry results. None has been
+applied to production, and neither v3 Edge Function has been deployed for
+these phases.
 
 Do not run the production workflow merely to verify a code change. Migration
 application, function deployment, and production smoke tests require an

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { CommandData, Commitment, DailyLog, Entity, EntityType, Idea, JobApplication, LearningItem, Person, Project, Settings } from './types'
+import type { CommandData, Commitment, DailyLog, Entity, EntityType, Idea, JobApplication, LearningItem, OutcomeSubmission, Person, Project, RunSummary, Settings, WeekSummary } from './types'
 import { getSupabase } from './lib/supabase'
 import { isSupabaseConfigured } from './lib/config'
 import { onAuthStateChange, signOut as doSignOut, getSession } from './lib/auth'
-import { decideAgentProposal, loadRemoteData, loadRemoteSettings, loadV3BrowsePage, loadV3DuePage, type AgentProposalDecision, type RemoteDueItem, type RemotePage } from './lib/api'
+import { decideAgentProposal, loadRemoteData, loadRemoteSettings, loadV3BrowsePage, loadV3DuePage, loadV3Run, loadV3Week, type AgentProposalDecision, type RemoteDueItem, type RemotePage } from './lib/api'
 import { settings as defaultSettings } from './domain'
 import {
   clearDemoCache, readDemoData, readLiveCache, readStoredSettings,
@@ -28,8 +28,11 @@ export interface UseCommandDataResult {
   syncMessage: string
   online: boolean
   retrySync: () => void
+  refreshData: () => void
   loadDuePage: (day: string, window: 'overdue' | 'today' | 'week' | 'all', typeKey: string | null, offset: number) => Promise<RemotePage<RemoteDueItem>>
   loadBrowsePage: (type: EntityType, offset: number) => Promise<RemotePage<Entity>>
+  loadWeek: (day: string) => Promise<WeekSummary>
+  loadRun: (day: string) => Promise<RunSummary>
   saveLog: (log: DailyLog) => boolean
   saveApplication: (app: JobApplication) => boolean
   deleteApplication: (id: string) => boolean
@@ -44,6 +47,8 @@ export interface UseCommandDataResult {
   deleteLearning: (id: string) => boolean
   saveEntity: (entity: Entity) => boolean
   saveCommitment: (commitment: Commitment) => boolean
+  saveOutcome: (submission: OutcomeSubmission) => boolean
+  saveEntityType: (type: EntityType) => boolean
   saveCapture: (entity: Entity, commitment: Commitment | null) => boolean
   archiveEntity: (entity: Entity) => boolean
   restoreEntity: (entity: Entity) => boolean
@@ -148,6 +153,18 @@ export function useCommandData(): UseCommandDataResult {
     return loadV3BrowsePage(client, type, offset)
   }, [mode])
 
+  const loadWeek = useCallback(async (day: string): Promise<WeekSummary> => {
+    const client = getSupabase()
+    if (mode !== 'live' || !client) throw new Error('Live Week data is unavailable.')
+    return loadV3Week(client, day)
+  }, [mode])
+
+  const loadRun = useCallback(async (day: string): Promise<RunSummary> => {
+    const client = getSupabase()
+    if (mode !== 'live' || !client) throw new Error('Live Run data is unavailable.')
+    return loadV3Run(client, day)
+  }, [mode])
+
   async function decideProposal(decision: AgentProposalDecision): Promise<boolean> {
     if (!sync.canWrite() || mode !== 'live') return false
     const client = getSupabase()
@@ -192,8 +209,11 @@ export function useCommandData(): UseCommandDataResult {
     syncMessage: sync.message,
     online: sync.online,
     retrySync: sync.retry,
+    refreshData: boot,
     loadDuePage,
     loadBrowsePage,
+    loadWeek,
+    loadRun,
     decideProposal,
     ...mutations,
     ...v3Mutations,

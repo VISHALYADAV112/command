@@ -1295,6 +1295,7 @@ export type Database = {
           event_type: string
         }[]
       }
+      get_v3_run: { Args: { p_day?: string }; Returns: Json }
       get_v3_today: {
         Args: { p_day?: string; p_limit?: number }
         Returns: Json
@@ -1455,6 +1456,30 @@ export type Database = {
         }
         Returns: Json
       }
+      write_v3_plugin_outcome: {
+        Args: {
+          p_commitment_id: string
+          p_completed_at: string
+          p_idempotency_key: string
+          p_next_commitment_id: string
+          p_next_due_on: string
+          p_outcome: string
+          p_recall: string
+        }
+        Returns: Json
+      }
+      write_v3_plugin_outcome_phase7_impl: {
+        Args: {
+          p_commitment_id: string
+          p_completed_at: string
+          p_idempotency_key: string
+          p_next_commitment_id: string
+          p_next_due_on: string
+          p_outcome: string
+          p_recall: string
+        }
+        Returns: Json
+      }
       write_v3_entity: {
         Args: {
           p_archived_at: string
@@ -1476,6 +1501,24 @@ export type Database = {
           p_idempotency_key: string
           p_schema_version: number
           p_title: string
+        }
+        Returns: Json
+      }
+      write_v3_entity_type: {
+        Args: {
+          p_allowed_commitment_kinds: string[]
+          p_default_sort_direction: string
+          p_default_sort_field: string
+          p_field_schema: Json
+          p_group_by_field: string
+          p_icon_key: string
+          p_id: string
+          p_is_active: boolean
+          p_plugin_key: string
+          p_plural_name: string
+          p_schema_version: number
+          p_singular_name: string
+          p_type_key: string
         }
         Returns: Json
       }

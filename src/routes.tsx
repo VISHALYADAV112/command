@@ -6,6 +6,8 @@ export type AppRoute =
   | { kind: 'due'; window: DueWindow; typeKey: string | null }
   | { kind: 'browse'; typeKey: string | null }
   | { kind: 'item'; id: string }
+  | { kind: 'week' }
+  | { kind: 'run' }
 
 const legacyTypes: Record<string, string> = {
   jobs: 'application',
@@ -26,6 +28,8 @@ function readRoute(): AppRoute {
   }
   if (parts[0] === 't') return { kind: 'browse', typeKey: parts[1] ?? null }
   if (parts[0] === 'i' && parts[1]) return { kind: 'item', id: parts[1] }
+  if (parts[0] === 'week') return { kind: 'week' }
+  if (parts[0] === 'run') return { kind: 'run' }
   if (legacyTypes[parts[0]]) return { kind: 'browse', typeKey: legacyTypes[parts[0]] }
   return { kind: 'today' }
 }
@@ -33,6 +37,8 @@ function readRoute(): AppRoute {
 function hashFor(route: AppRoute): string {
   if (route.kind === 'today') return '#/'
   if (route.kind === 'item') return `#/i/${route.id}`
+  if (route.kind === 'week') return '#/week'
+  if (route.kind === 'run') return '#/run'
   if (route.kind === 'browse') return route.typeKey ? `#/t/${route.typeKey}` : '#/t/application'
   const params = new URLSearchParams()
   if (route.window !== 'all') params.set('window', route.window)
@@ -69,6 +75,7 @@ export function ViewNav({ route, navigate, onCapture, onMore }: {
       <button type="button" className={active === 'due' ? 'is-active' : ''} aria-current={active === 'due' ? 'page' : undefined} onClick={() => navigate({ kind: 'due', window: 'all', typeKey: null })}>Due</button>
       <button type="button" onClick={onCapture}>Capture</button>
       <button type="button" className={active === 'browse' ? 'is-active' : ''} aria-current={active === 'browse' ? 'page' : undefined} onClick={() => navigate({ kind: 'browse', typeKey: 'application' })}>Browse</button>
+      <button type="button" className={`desktop-review-nav ${active === 'week' ? 'is-active' : ''}`} aria-current={active === 'week' ? 'page' : undefined} onClick={() => navigate({ kind: 'week' })}>Week</button>
       <button type="button" onClick={onMore}>More</button>
     </nav>
   )

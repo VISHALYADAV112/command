@@ -1,7 +1,7 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 2.6
+**Plan version:** 2.9
 **Created:** 2026-08-30
 **Last updated:** 2026-09-02
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
@@ -60,13 +60,13 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 4. Build the responsive Gazette shell | **Complete** | Shared shell works at 380px and desktop widths |
 | 5. Build the core v3 product workflows | **Complete** | Today, Due, Browse, Item, and overlays pass the corrected implementation gate |
 | 6. Rebuild MCP and agent review | **Complete** | Dynamic tools, permissions, approval, and provenance pass |
-| 7. Add review, readiness, export, and integrations | **In progress** | Week, Run, settings, export, and Calendar rules work |
+| 7. Add review, readiness, export, and integrations | **Complete** | Week, Run, settings, export, and Calendar rules work |
 | 8. Cut over, harden, and retire legacy paths | **Not started** | Production smoke tests and final completion gate pass |
 
-**Active phase:** Phase 7 — Add review, readiness, export, and integrations.
-**Current blocker:** None. Authenticated production smoke testing remains an explicit Phase 8 cutover task, not a blocker to local Phase 7 implementation.
-**Repository state:** GitHub `main` remains at `e1b6676`, while the public Vercel alias remains pinned to the compatible Phase 4 deployment from `e2d5d15` described in `docs/deployment.md`. The corrected Phase 5 implementation and Phase 6 work live only on the isolated `command-v3` branch and are not deployed. Phase 6 added append-only migrations `0026`–`0032`; they were applied only to the local Supabase environment. No production database migration, Supabase function deployment, production frontend change, or production-data change was performed.
-**Next slice:** Implement Week from the existing bounded `get_v3_week` contract: verify Monday–Sunday `Asia/Kolkata` boundaries, three practice totals, weekly 15/2 outcomes, future days as pending, proposal activity, and commitment outcomes before beginning Run-marker formulas.
+**Active phase:** None. Phase 7 is complete and Phase 8 has not started.
+**Current blocker:** None for Phase 7. Phase 8 intentionally requires explicit production-cutover authorization and a maintenance window before it begins.
+**Repository state:** GitHub `main` remains at `e1b6676`, while the public Vercel alias remains pinned to the compatible Phase 4 deployment from `e2d5d15` described in `docs/deployment.md`. The corrected Phase 5, completed Phase 6, and completed Phase 7 implementation remain isolated on the local `command-v3` branch; Phase 6 is recorded by local commit `1cf9ff7`. Phase 6 migrations `0026`–`0032` and Phase 7 migrations `0033`–`0037` were applied only to the local Supabase environment. No production database migration, Supabase function deployment, production frontend change, or production-data change was performed.
+**Next slice:** After explicit cutover authorization, produce and verify an encrypted/private production export before applying any migration; then announce and use the short single-user maintenance window for the final backfill and cutover.
 
 ---
 
@@ -480,41 +480,50 @@ This section is the user-visible and operational feature checklist. A checked fe
 
 ### 8.5 Week
 
-- [ ] Monday–Sunday boundaries in `Asia/Kolkata`.
-- [ ] Three practice totals against weekly budgets.
-- [ ] Weekly submitted applications and new people contacted against their targets.
-- [ ] Seven-day table with future days shown as pending, not zero.
-- [ ] Application/pipeline movement this week.
-- [ ] Agent proposal activity: proposed, approved, rejected.
-- [ ] Commitments completed, cancelled, and missed.
-- [ ] Empty-week structure.
+- [x] Monday–Sunday boundaries in `Asia/Kolkata`.
+- [x] Three practice totals against weekly budgets.
+- [x] Weekly submitted applications and new people contacted against their targets.
+- [x] Seven-day table with future days shown as pending, not zero.
+- [x] Application movement this week through immutable submitted-application outcomes; do not infer unrecorded status transitions.
+- [x] Agent proposal activity: proposed, approved, rejected.
+- [x] Commitments completed, cancelled, and missed.
+- [x] Empty-week structure.
 
 ### 8.6 Run
 
-- [ ] Public portfolio projects against target three.
-- [ ] DSA patterns covered/mastered.
-- [ ] Mock interviews completed.
-- [ ] Precisely defined application conversion marker, with final Phase 7 filters using canonical activity history.
-- [ ] Referral conversations held.
-- [ ] Current value, target, and trailing trend.
-- [ ] Insufficient-history state without a misleading trend.
-- [ ] Monthly, not daily, prominence.
+- [x] Public portfolio projects against target three.
+- [x] DSA patterns covered/mastered.
+- [x] Mock interviews completed.
+- [x] Precisely defined application conversion marker, with final Phase 7 filters using canonical activity history.
+- [x] Referral conversations held.
+- [x] Current value, target, and trailing trend.
+- [x] Insufficient-history state without a misleading trend.
+- [x] Monthly, not daily, prominence.
+
+Final Phase 7 marker contract:
+
+- **Public portfolio — target 3:** current non-archived project entities whose `project_type` is `portfolio`, `status` is `done`, `is_public` is true, documentation is non-empty, and either repository or demo URL is non-empty. The canonical `updated_at` is the conservative qualification date used for completed-month history.
+- **DSA patterns — target 24 mastered:** covered means a current non-archived learning entity with `track = dsa` and `item_type = pattern`; mastered additionally requires `confidence = 5`, `mastery_hits >= 2`, and a `last_reviewed_on` date. History uses that final review date and the card retains the covered count as context.
+- **Mock interviews — target 10:** completed `drill` commitments whose trimmed action is `Mock interview` or begins `Mock interview` followed by a separator. Completion time supplies immutable month placement; generic Schedule and Outcome remain the only workflow.
+- **Application-to-first-round conversion — target 25%:** denominator is one latest immutable `application.submitted` event per application; numerator is the corresponding canonical application currently at `phone`, `onsite`, or `offer`. Current value is the all-submission conversion through the as-of day; completed-month history is calculated per submission cohort. `oa` is not treated as a first round, and rejected records are not guessed to have converted.
+- **Referral conversations — target 12:** distinct person entities with at least one completed `contact` commitment. The first completed contact supplies month placement, so later archive or status changes do not erase a held conversation.
+- Count histories are cumulative as of each of the three most recent completed calendar month ends in the owner timezone. Zero is a valid observation once the account existed; conversion requires a non-empty submitted-application cohort in every month. Otherwise the trend is suppressed as insufficient history.
 
 ### 8.7 Settings
 
-- [ ] Targets with explanation that historical status is derived from current targets.
-- [ ] Type registry list.
-- [ ] Create and edit data-only types.
-- [ ] Version and validate schemas.
-- [ ] Mark list-visible and filterable fields.
-- [ ] Configure allowed commitment kinds and defaults.
-- [ ] Disable a type without deleting records.
-- [ ] Google Calendar connect, disconnect, and last-sync state.
-- [ ] Connected MCP clients, application permissions, last activity, and revocation.
-- [ ] Agent audit/provenance access.
-- [ ] JSON export.
-- [ ] Per-type CSV export.
-- [ ] Theme selection.
+- [x] Targets with explanation that historical status is derived from current targets.
+- [x] Type registry list.
+- [x] Create and edit data-only types.
+- [x] Version and validate schemas.
+- [x] Mark list-visible and filterable fields.
+- [x] Configure allowed commitment kinds and defaults.
+- [x] Disable a type without deleting records.
+- [x] Google Calendar connect, disconnect, and last-sync state.
+- [x] Connected MCP clients, application permissions, last activity, and revocation.
+- [x] Agent audit/provenance access.
+- [x] JSON export.
+- [x] Per-type CSV export.
+- [x] Theme selection.
 
 ### 8.8 Capture, Log, Outcome, and drafts
 
@@ -524,8 +533,8 @@ This section is the user-visible and operational feature checklist. A checked fe
 - [x] Edit reuses the same schema form.
 - [x] Daily Log remains under two minutes.
 - [x] Outcome records what happened rather than only a done flag.
-- [ ] Plugin may propose the next commitment after an outcome.
-- [ ] User sees and can adjust a computed next date before saving when appropriate.
+- [x] Plugin may propose the next commitment after an outcome.
+- [x] User sees and can adjust a computed next date before saving when appropriate.
 - [x] Unsaved drafts survive overlay dismissal, save failure, and connection loss.
 - [x] Successful saves clear only the submitted draft.
 
@@ -550,7 +559,7 @@ This section is the user-visible and operational feature checklist. A checked fe
 
 - [ ] Google owner-only authentication.
 - [x] OAuth consent for MCP clients.
-- [ ] Google Calendar token encryption and revocation.
+- [x] Google Calendar token encryption and revocation.
 - [ ] PWA install and service worker update prompt.
 - [ ] Update prompt never clears an active form.
 - [ ] Cached reads and visible staleness state.
@@ -583,10 +592,10 @@ The source proposal and prototypes do not yet define the following well enough t
 
 - Registry schema format, supported field kinds, bounds, key permanence, deprecation, and version evolution are resolved in Phase 2.
 - Commitment transitions are resolved in PLAN-016. Multiple simultaneous commitments are allowed and have stable UUID identity rather than an entity/kind/date uniqueness rule.
-- Event immutability, correction-by-append, and idempotency uniqueness are resolved in PLAN-017. Retention and export presentation remain Phase 7 work.
-- Final Run filters and targets are deliberately deferred to Phase 7; they must use only canonical entities, commitments, and activity events and cannot change the schema or routes.
+- Event immutability, correction-by-append, and idempotency uniqueness are resolved in PLAN-017. Phase 7 export includes canonical immutable activity history.
+- Final Run filters and targets are resolved in PLAN-027 and use only canonical entities, commitments, and activity events without a marker-specific table, column, or route.
 - Changing floor and weekly targets intentionally reinterprets derived historical status using current settings; raw logs and events remain unchanged.
-- Calendar link migration from domain-specific events to commitments is unspecified.
+- Calendar links are commitment-scoped. Existing mapped links are preserved, eligible events are rendered from owner-filtered server reads, and retries use deterministic provider event ids.
 - Due and readiness reads are bounded; Browse uses bounded server paging and registry-defined sorting from Phase 5.
 - Registry deactivation rules and archived-search defaults remain unspecified; field-key and field-change rules are resolved in Section 3.2.
 
@@ -865,25 +874,69 @@ Progress verified on 2026-09-02:
 
 ### Phase 7 — Add review, readiness, export, and integrations
 
-**Status:** In progress
+**Status:** Complete
 
 Tasks:
 
-- [ ] Implement Week from derived data.
-- [ ] Implement the five approved Run markers and insufficient-history states.
-- [ ] Port `applyRecall` into the behaviour-plugin contract without changing its tested schedule.
-- [ ] Implement plugin-scheduled follow-on commitments through Outcome.
-- [ ] Implement Targets and Type registry Settings.
-- [ ] Implement Integrations, permissions, clients, revocation, and audit access.
-- [ ] Implement dynamic JSON and per-type CSV export.
-- [ ] Generalise Calendar event mapping from applications/projects to approved commitment kinds.
-- [ ] Preserve Calendar idempotency, unlinking, refresh, and encrypted tokens.
-- [ ] Decide whether a Calendar route has earned inclusion; implement only if D-06 changes.
-- [ ] Add derived-query, export, plugin, and Calendar tests.
+- [x] Implement Week from derived data.
+- [x] Implement the five approved Run markers and insufficient-history states.
+- [x] Port `applyRecall` into the behaviour-plugin contract without changing its tested schedule.
+- [x] Implement plugin-scheduled follow-on commitments through Outcome.
+- [x] Implement Targets and Type registry Settings.
+- [x] Implement Integrations, permissions, clients, revocation, and audit access.
+- [x] Implement dynamic JSON and per-type CSV export.
+- [x] Generalise Calendar event mapping from applications/projects to approved commitment kinds.
+- [x] Preserve Calendar idempotency, unlinking, refresh, and encrypted tokens.
+- [x] Decide whether a Calendar route has earned inclusion; D-06 remains unchanged, so no route was added.
+- [x] Add derived-query, export, plugin, and Calendar tests.
+
+Progress verified on 2026-09-02:
+
+- Implemented the responsive `/#/week` review from the existing bounded `get_v3_week` contract, with direct desktop navigation and a mobile entry under More.
+- Week uses Monday–Sunday `Asia/Kolkata` dates, the three practice budgets, weekly 15/2 application and outreach outcomes, a seven-day execution view with future days marked pending, proposal activity, commitment outcomes, and an explicit empty-week structure.
+- Live mode reads the owner-scoped RPC through `src/lib/api.ts`; demo/cached mode derives the same typed shape locally without introducing a second database contract or changing an applied migration.
+- Targeted Week/application coverage: 3 files / 19 tests passed; the focused Week pgTAP contract passed 1 file / 38 assertions; the corrected focused mobile Week browser check passed 1/1.
+- `npm test`: 19 files / 80 tests passed.
+- `npx tsc -b`: passed with no errors.
+- `npm run build`: passed; Vite production bundle completed with the existing non-blocking chunk-size warning.
+- `npm run test:e2e`: 14/14 browser tests passed, including direct desktop Week navigation, mobile More navigation, four pending future days at 380px, and route-wide overflow coverage.
+- `npm run test:db`: 11 files / 335 assertions passed.
+- `npx supabase db lint --local --level warning`: no schema errors or warnings.
+- `git diff --check`: passed.
+- Defined the final Run filters and targets in PLAN-027, then added append-only migration `0033_v3_run_summary.sql` with a fixed five-marker, three-month, owner-scoped derived read. No marker-specific table or column was added.
+- Implemented `/#/run` with current values, targets, supporting counts, cumulative completed-month histories, conversion-cohort history, and explicit insufficient-history suppression. Run stays under More/Settings instead of occupying the daily primary rail.
+- Live mode uses `get_v3_run`; demo/cached mode derives the same typed contract from canonical entities, commitments, and activity events.
+- Targeted Run application coverage: 2 files / 15 tests passed; focused Run pgTAP coverage passed 1 file / 18 assertions; the focused 380px Run browser flow passed 1/1.
+- `npm test`: 20 files / 83 tests passed.
+- `npx tsc -b`: passed with no errors.
+- `npm run build`: passed; Vite production bundle completed with the existing non-blocking chunk-size warning.
+- `npm run test:e2e`: 15/15 browser tests passed, including the five-marker Run review, honest trend suppression, mobile More navigation, and route-wide overflow coverage.
+- `npm run test:db`: 12 files / 353 assertions passed.
+- `npx supabase db lint --local --level warning`: no schema errors or warnings.
+- `git diff --check`: passed.
+- Added an explicit allow-listed behaviour-plugin contract and ported spaced repetition without changing its 21/7/3/1-day schedule. Outcome validates and records the result transactionally, previews an adjustable next date, updates mastery fields, and optionally creates the follow-on commitment without a type-specific screen.
+- Added registry administration for data-only types, permanent type/field keys, schema-versioned evolution, field metadata, allowed commitment kinds, plugin selection, safe disablement, weekly targets, and immediate generic Capture/Browse support.
+- Separated OAuth identity grants from all four Command application permissions in Settings, including per-client grant editing, revocation, last activity, and bounded private MCP audit access. Installed Supabase Auth types confirm `getAuthorizationDetails` supplies the `client.id` and `user.id` consumed by the consent screen.
+- Replaced legacy export shapes with canonical v3 JSON and schema-driven per-type CSV that includes archived rows and deprecated fields with correct escaping.
+- Generalised manual Calendar export to approved open commitments: deadlines, milestones, and explicitly labelled mock-interview drills. The Edge Function re-reads owner-scoped canonical rows, maps content server-side, uses deterministic Google event ids, updates existing links, unlinks closed/ineligible records, records provenance, and keeps OAuth-client access blocked.
+- Extracted Calendar token storage to authenticated AES-256-GCM encryption with a random IV and exact 32-byte key validation. Settings retains connect, verification, last-sync, disconnect, and revocation state; no standalone Calendar route was added because D-06 remains valid.
+- Added append-only local migrations `0034_v3_phase7_plugins_and_registry.sql`, `0035_v3_plugin_outcome_qualification_fix.sql`, `0036_v3_plugin_registry_guard.sql`, and `0037_v3_plugin_retry_result_fix.sql`; each correction after local application was added as a new migration rather than rewriting history.
+- Targeted MCP/auth/API/Agent/consent/Calendar/plugin/Week/Run coverage: 13 files / 59 tests passed.
+- Targeted Phase 7 database coverage: 1 file / 24 assertions passed.
+- Targeted data-only type and adjustable-recall browser coverage: 2/2 tests passed.
+- `npm test`: 22 files / 97 tests passed.
+- `npx tsc -b`: passed with no errors.
+- `npm run build`: passed; Vite production bundle completed with the existing non-blocking chunk-size warning.
+- `npm run test:e2e`: 17/17 browser tests passed.
+- `npm run test:db`: 13 files / 377 assertions passed.
+- `npx supabase db lint --local --level warning`: no schema errors or warnings.
+- `deno check --no-config supabase/functions/google-calendar/index.ts`: passed.
+- `git diff --check`: passed.
+- Blockers: none. Production deployment, migration, live authentication, and smoke testing remain explicitly gated Phase 8 work.
 
 Exit gate:
 
-- [ ] Weekly/monthly review, type administration, export, recall scheduling, and approved Calendar workflows operate without type-specific frontend screens.
+- [x] Weekly/monthly review, type administration, export, recall scheduling, and approved Calendar workflows operate without type-specific frontend screens.
 
 ### Phase 8 — Cut over, harden, and retire legacy paths
 
@@ -1010,24 +1063,24 @@ This estimate must not be converted into a deadline until the missing product de
 
 Command v3 is complete only when all of the following are true:
 
-- [ ] All decisions in Section 3 are resolved and recorded.
+- [x] All decisions in Section 3 are resolved and recorded.
 - [ ] Every required feature in Section 8 is checked or explicitly deferred with approval.
 - [ ] Every missing item in Section 9 is resolved, implemented, or explicitly deferred.
 - [ ] Existing production data is migrated and verified with no unexplained loss.
-- [ ] A new data-only type works in Settings, Capture, Browse, Item, export, and MCP without deployment.
+- [x] A new data-only type works in Settings, Capture, Browse, Item, export, and MCP without deployment.
 - [ ] Every dated record uses the unified commitment path.
 - [x] An MCP retry cannot overwrite a UI edit.
-- [ ] Unapproved agent proposals never enter Browse, Due, Item, or Calendar.
+- [x] Unapproved agent proposals never enter Browse, Due, Item, or Calendar.
 - [ ] Every canonical change shows honest provenance.
-- [ ] Existing recall scheduling passes unchanged through the plugin contract.
+- [x] Existing recall scheduling passes unchanged through the plugin contract.
 - [x] The browser refreshes external changes without manual reload.
-- [ ] Today is fast and legible at 380px with no horizontal overflow.
+- [x] Today is fast and legible at 380px with no horizontal overflow.
 - [ ] Every route has loading, empty, error, stale, and offline behaviour.
 - [ ] Accessibility requirements pass keyboard and screen-reader-oriented review.
 - [x] RLS and permission tests prevent cross-user, direct-OAuth, or over-broad access.
-- [ ] `npm test`, `npx tsc -b`, and `npm run build` pass.
+- [x] `npm test`, `npx tsc -b`, and `npm run build` pass.
 - [ ] Required E2E, database, edge, migration, and production smoke tests pass.
-- [ ] README, AGENTS, architecture docs, and deployment instructions describe reality.
+- [x] README, AGENTS, architecture docs, and deployment instructions describe reality.
 - [ ] Legacy cleanup, if any, is separately approved and recoverable.
 
 ---
@@ -1064,6 +1117,8 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2026-09-01 | PLAN-024 | Treat local production-contract verification as the Phase 5 implementation gate and reserve authenticated production smoke testing for Phase 8 | Requiring live v3 reads before the planned schema/backfill cutover creates an impossible and unsafe phase dependency | Phase 5 may close after local application/database/browser gates pass; the public alias stays on Phase 4 until the coordinated cutover |
 | 2026-09-02 | PLAN-025 | Split MCP authorization into owner/client application grants for registry read, data read, proposal write, and additional people data | Supabase currently supports only OIDC identity scopes and explicitly does not support custom resource scopes; Command still needs independent, honest permissions | Store selected grants in an RLS-protected Command row during consent; missing rows deny all tools, broad reads omit people without `command:data:people`, all writes remain approval-gated proposals, and Calendar permission stays separate |
 | 2026-09-02 | PLAN-026 | Deny Supabase OAuth-client tokens direct access to Command tables, first-party mutation RPCs, and Calendar; let the MCP edge read only through explicitly owner-scoped service queries | Supabase OAuth access tokens use the normal `authenticated` database role, so tool-level permissions alone would otherwise be bypassable through PostgREST or existing UI RPCs | Restrictive RLS and guarded RPCs keep the five-tool MCP boundary authoritative; application permission rows cannot be self-escalated and Calendar stays first-party only |
+| 2026-09-02 | PLAN-027 | Fix Run at targets 3 public portfolios, 24 mastered DSA patterns, 10 explicitly labelled mock-interview drills, 25% application-to-first-round conversion, and 12 distinct completed person contacts | The approved marker names lacked implementable filters and targets; the final contract must use only canonical entities, commitments, and immutable activity without a special-purpose table or column | `get_v3_run` may add one bounded derived-read RPC; count history is cumulative over three completed owner-local months, conversion uses monthly submission cohorts, and missing coverage suppresses trends rather than inventing a slope |
+| 2026-09-02 | PLAN-028 | Keep spaced repetition as the first allow-listed behaviour plugin and make Calendar export a manual, commitment-scoped, server-mapped first-party action | Plugin code must remain bounded and testable, while Calendar content and eligibility cannot be trusted to browser or MCP payloads | Outcome may atomically create an adjustable plugin follow-on; only open deadlines, milestones, and explicit mock-interview drills are eligible; deterministic provider ids, owner-scoped reads, encrypted tokens, unlinking, and provenance preserve safe retries |
 
 ---
 
@@ -1089,3 +1144,6 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2.4 | 2026-09-01 | Reopened Phase 5 for an evidence-backed correction pass, paused the partial Phase 6 slice, and moved ongoing work to `command-v3` so production remains pinned safely to Phase 4 |
 | 2.5 | 2026-09-01 | Completed the Phase 5 correction pass with wired paged reads, timestamp sorting, event-consistent weekly outcomes, transactional capture, restored responsive/large-data coverage, corrected deployment documentation, and passing unit/type/build/browser/database verification; resumed Phase 6 |
 | 2.6 | 2026-09-02 | Completed Phase 6 with five registry-aware MCP tools, schema-valid idempotent proposals, owner/client application permissions, OAuth database/RPC/Calendar isolation, Agent inbox review, source/client provenance, visibility and post-decision refresh, append-only migrations `0026`–`0032`, and passing unit/type/build/browser/database/lint verification; Phase 7 Week work is next |
+| 2.7 | 2026-09-02 | Completed the first Phase 7 slice with a responsive Week route backed by the bounded `get_v3_week` contract, India-local Monday–Sunday execution, three practice budgets, 15/2 outcomes, pending future days, proposal and commitment outcomes, empty-state coverage, and no database migration; Run-marker filters and targets are next |
+| 2.8 | 2026-09-02 | Defined and implemented the five Run markers at targets 3/24/10/25%/12, added bounded owner-scoped migration `0033`, rendered honest three-completed-month or insufficient-history states at `/#/run`, kept the monthly review under More, and added application/database/mobile-browser coverage; the existing recall schedule is the next behaviour-plugin slice |
+| 2.9 | 2026-09-02 | Completed Phase 7 with the allow-listed behaviour-plugin contract and adjustable atomic recall follow-ons, registry/target/integration settings, canonical dynamic exports, manual server-mapped commitment Calendar export, AES-256-GCM token storage, append-only migrations `0034`–`0037`, and full application/browser/database/edge verification; Phase 8 remains unstarted pending explicit production-cutover authorization |
