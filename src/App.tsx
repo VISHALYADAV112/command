@@ -7,26 +7,26 @@ import { dateKey, emptyLog } from './domain'
 import { exportData, exportTypeCsv } from './lib/api'
 import { useHashRoute, ViewNav } from './routes'
 import type { Commitment, DailyLog, Entity } from './types'
-import { Icon } from './ui'
 import { useCommandData, type SyncState } from './useCommandData'
 import { useIndiaToday } from './useIndiaToday'
-import { CommitmentQueue, TodayView } from './views/TodayView'
+import { TodayView } from './views/TodayView'
 import { DueView } from './views/DueView'
 import { BrowseView } from './views/BrowseView'
 import { ItemView } from './views/ItemView'
 import { EntitySheet } from './views/EntitySheet'
 import { OutcomeSheet, ScheduleSheet } from './views/CommitmentSheets'
 import { DailyLogSheet } from './views/DailyLogSheet'
-import { AgentInboxSheet } from './views/AgentInboxSheet'
+import { AgentInboxSheet, pendingProposalCount } from './views/AgentInboxSheet'
 import { WeekView } from './views/WeekView'
 import { RunView } from './views/RunView'
+import { CalendarView } from './views/CalendarView'
 import { commitmentEventPayload, createCalendarEvent } from './lib/calendar'
+import { dueItems } from './v3Selectors'
 
 export function App() {
   const today = useIndiaToday()
   const command = useCommandData()
   const [route, navigate] = useHashRoute()
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
   const [captureType, setCaptureType] = useState<string | null>(null)
   const [editingEntity, setEditingEntity] = useState<Entity | null>(null)
@@ -42,6 +42,15 @@ export function App() {
     function onUpdateReady() { setUpdateReady(true) }
     window.addEventListener('command:update-ready', onUpdateReady)
     return () => window.removeEventListener('command:update-ready', onUpdateReady)
+  }, [])
+  useEffect(() => {
+    function onShortcut(event: KeyboardEvent) {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return
+      if (event.key.toLocaleLowerCase() === 'c') setCaptureType('application')
+      if (event.key.toLocaleLowerCase() === 'l') setLogOpen(true)
+    }
+    window.addEventListener('keydown', onShortcut)
+    return () => window.removeEventListener('keydown', onShortcut)
   }, [])
 
   function showNotice(message: string) {
@@ -89,14 +98,17 @@ export function App() {
   const outcomeType = outcomeEntity ? data.entityTypes.find((type) => type.id === outcomeEntity.entityTypeId) : null
   const openItem = (id: string) => navigate({ kind: 'item', id })
   const openCapture = (typeKey: string | null = null) => setCaptureType(typeKey ?? 'application')
+  const urgentCount = dueItems(data, today).filter((item) => item.dueStatus !== 'upcoming').length
+  const pendingAgents = pendingProposalCount(data)
 
   return <>
     <div className="app-shell" id="top">
-      <AppHeader today={today} live={command.mode === 'live'} theme={command.settings.theme} onOpenSettings={() => setSettingsOpen(true)} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
-      <ViewNav route={route} navigate={navigate} onCapture={() => openCapture()} onMore={() => setSettingsOpen(true)} />
-      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} onOpenAgentInbox={() => setAgentInboxOpen(true)} />}
+      <AppHeader today={today} live={command.mode === 'live'} theme={command.settings.theme} data={data} settings={command.settings} onOpenSettings={() => navigate({ kind: 'settings' })} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
+      <ViewNav route={route} navigate={navigate} onCapture={() => openCapture()} onLog={() => setLogOpen(true)} onAgent={() => setAgentInboxOpen(true)} pendingAgents={pendingAgents} dueBadge={urgentCount} />
+      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} onOpenAgentInbox={() => setAgentInboxOpen(true)} onOpenDue={() => navigate({ kind: 'due', window: 'all', typeKey: null })} onOpenWeek={() => navigate({ kind: 'week' })} />}
       {route.kind === 'due' && <DueView data={data} today={today} window={route.window} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadDuePage : undefined} onChange={(window, typeKey) => navigate({ kind: 'due', window, typeKey })} onOutcome={setOutcome} onOpenItem={openItem} onCapture={openCapture} />}
-      {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadBrowsePage : undefined} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => setSettingsOpen(true)} />}
+      {route.kind === 'calendar' && <CalendarView data={data} today={today} onOpenItem={openItem} onOutcome={setOutcome} />}
+      {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadBrowsePage : undefined} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => navigate({ kind: 'settings' })} />}
       {route.kind === 'item' && <ItemView data={data} entityId={route.id} onEdit={setEditingEntity} onSchedule={(entity, commitment = null) => setScheduling({ entity, commitment })} onOutcome={setOutcome} onArchive={archive} onRestore={restore} onCalendar={command.mode === 'live' && command.session ? async (commitment, entity, type) => {
         const payload = commitmentEventPayload(commitment, entity, type)
         if (!payload || !command.session) throw new Error('This commitment is not approved for Calendar export.')
@@ -106,7 +118,8 @@ export function App() {
       } : undefined} />}
       {route.kind === 'week' && <WeekView data={data} settings={command.settings} today={today} loadSummary={command.mode === 'live' ? command.loadWeek : undefined} />}
       {route.kind === 'run' && <RunView data={data} today={today} loadSummary={command.mode === 'live' ? command.loadRun : undefined} />}
-      <footer><img src="./assets/command-mark.svg" alt="" /><span>Keep the centre clear.</span></footer>
+      {route.kind === 'settings' && <SettingsSheet inline settings={command.settings} entityTypes={data.entityTypes} session={command.session} mode={command.mode} onSaveSettings={(settings) => { const saved = command.saveSettings(settings); if (saved) showNotice('Targets saved'); return saved }} onSaveEntityType={(type) => { const saved = command.saveEntityType(type); if (saved) showNotice('Type saved'); return saved }} onSignOut={command.signOut} onClose={() => navigate({ kind: 'today' })} onOpenWeek={() => navigate({ kind: 'week' })} onOpenRun={() => navigate({ kind: 'run' })} onOpenCalendar={() => navigate({ kind: 'calendar' })} onExport={handleExport} />}
+      <footer className="gazette-footer"><div lang="sa-Brah">𑀓 𑀫 𑀤 𑀯 𑀢 𑀭 𑀲</div><section><button className="log-button" type="button" onClick={() => setLogOpen(true)}>File evening practice log</button><span>Keys: C capture · L log · Esc close</span></section></footer>
     </div>
 
     {logOpen && <DailyLogSheet log={todayLog} settings={command.settings} onSave={(log: DailyLog) => { const saved = command.saveLog(log); if (saved) showNotice('Today saved'); return saved }} onClose={() => setLogOpen(false)} />}
@@ -115,7 +128,6 @@ export function App() {
     {scheduling && <ScheduleSheet entity={scheduling.entity} type={data.entityTypes.find((type) => type.id === scheduling.entity.entityTypeId)!} existing={scheduling.commitment} onSave={saveCommitment} onClose={() => setScheduling(null)} />}
     {outcome && outcomeEntity && outcomeType && <OutcomeSheet commitment={outcome} entity={outcomeEntity} type={outcomeType} onSave={command.saveOutcome} onClose={() => setOutcome(null)} />}
     {agentInboxOpen && <AgentInboxSheet data={data} onDecide={command.decideProposal} onClose={() => setAgentInboxOpen(false)} />}
-    {settingsOpen && <SettingsSheet settings={command.settings} entityTypes={data.entityTypes} session={command.session} mode={command.mode} onSaveSettings={(settings) => { const saved = command.saveSettings(settings); if (saved) showNotice('Targets saved'); return saved }} onSaveEntityType={(type) => { const saved = command.saveEntityType(type); if (saved) showNotice('Type saved'); return saved }} onSignOut={() => { setSettingsOpen(false); command.signOut() }} onClose={() => setSettingsOpen(false)} onOpenWeek={() => { setSettingsOpen(false); navigate({ kind: 'week' }) }} onOpenRun={() => { setSettingsOpen(false); navigate({ kind: 'run' }) }} onExport={handleExport} />}
     <SyncBanner state={command.syncState} message={command.syncMessage} onRetry={command.retrySync} />
     {updateReady && <div className="update-banner" role="status"><span>A new version is ready.</span><button className="secondary-button" type="button" onClick={() => window.location.reload()}>Refresh</button></div>}
     <div className={`toast ${notice ? 'is-visible' : ''}`} role="status" aria-live="polite">{notice}</div>

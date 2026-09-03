@@ -71,11 +71,25 @@ test('publishes valid installable PWA metadata', async ({ request }) => {
   expect(manifest.icons).toHaveLength(2)
 })
 
+test('recomposes Calendar from a desktop month grid to a phone agenda', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'September 2026', exact: true })).toBeVisible()
+  await expect(page.locator('.calendar-grid-frame')).toBeVisible()
+  await expect(page.locator('.calendar-mobile-agenda')).toBeHidden()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('.calendar-grid-frame')).toBeHidden()
+  await expect(page.locator('.calendar-mobile-agenda')).toBeVisible()
+  await expect(page.getByText('Review Node event-loop phases').last()).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+})
+
 test('keeps the Today priority, weekly outcomes, and primary action visible at 380px', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 844 })
   await expect(page.locator('.urgent-lead, .floor-field').first()).toBeInViewport()
   await expect(page.getByRole('group', { name: 'Weekly outcome progress' })).toBeInViewport()
-  await expect(page.getByRole('button', { name: /log today|review today/i })).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Capture', exact: true })).toBeInViewport()
   await expectNoHorizontalOverflow(page)
 })
 
@@ -83,7 +97,7 @@ test('supports common phone, tablet, and desktop Gazette widths', async ({ page 
   for (const width of [390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 })
     await expectNoHorizontalOverflow(page)
-    await expect(page.locator('.view-nav')).toHaveCSS('position', width <= 760 ? 'fixed' : 'static')
+    await expect(page.locator('.gazette-nav-row')).toHaveCSS('position', width <= 760 ? 'fixed' : 'relative')
   }
 })
 
@@ -91,10 +105,10 @@ test('uses the full Gazette navigation rail on desktop', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const nav = page.locator('.view-nav')
   await expect(nav.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page')
-  await nav.getByRole('button', { name: 'Week', exact: true }).click()
+  await nav.getByRole('button', { name: 'Week review', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'This week' })).toBeVisible()
-  await expect(nav.getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-current', 'page')
-  await expect(nav).toHaveCSS('position', 'static')
+  await expect(nav.getByRole('button', { name: 'Week review', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('.gazette-nav-row')).toHaveCSS('position', 'relative')
 })
 
 test('keeps every Phase 5 route inside the approved narrow viewport', async ({ page }) => {
@@ -121,8 +135,9 @@ test('shows the bounded Week review and keeps future days pending at 380px', asy
 
   await page.getByRole('button', { name: 'Today', exact: true }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
-  const settingsSheet = page.getByRole('dialog', { name: 'Targets & data' })
-  await settingsSheet.getByRole('button', { name: 'Open weekly review' }).click()
+  const settingsPage = page.getByRole('main')
+  await expect(settingsPage.getByRole('heading', { name: 'Preferences' })).toBeVisible()
+  await settingsPage.getByRole('button', { name: 'Open weekly review' }).click()
   await expect(page).toHaveURL(/#\/week$/)
 })
 
@@ -143,8 +158,9 @@ test('shows all five Run markers without inventing missing trends at 380px', asy
 
   await page.getByRole('button', { name: 'Today', exact: true }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
-  const settingsSheet = page.getByRole('dialog', { name: 'Targets & data' })
-  await settingsSheet.getByRole('button', { name: 'Open monthly Run' }).click()
+  const settingsPage = page.getByRole('main')
+  await expect(settingsPage.getByRole('heading', { name: 'Preferences' })).toBeVisible()
+  await settingsPage.getByRole('button', { name: 'Open monthly Run' }).click()
   await expect(page).toHaveURL(/#\/run$/)
 })
 
@@ -202,7 +218,8 @@ test('keeps a large dynamic type registry usable at 380px', async ({ page }) => 
 test('creates a data-only type that immediately works in Capture and Browse', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 844 })
   await page.getByRole('button', { name: 'More', exact: true }).click()
-  const settings = page.getByRole('dialog', { name: 'Targets & data' })
+  const settings = page.getByRole('main')
+  await expect(settings.getByRole('heading', { name: 'Preferences' })).toBeVisible()
   await expect(settings.getByText(/historical status are always derived/i)).toBeVisible()
   await settings.getByRole('button', { name: 'Create data type' }).click()
   const editor = page.getByRole('dialog', { name: 'Create data type' })
@@ -211,7 +228,6 @@ test('creates a data-only type that immediately works in Capture and Browse', as
   await editor.getByLabel('Plural name').fill('Books')
   await editor.getByRole('button', { name: 'Save type' }).click()
   await expect(editor).toBeHidden()
-  await settings.getByRole('button', { name: 'Close' }).click()
 
   await page.getByRole('button', { name: 'Capture', exact: true }).click()
   const capture = page.getByRole('dialog')
@@ -262,7 +278,7 @@ test('keeps the Agent inbox review gate usable at 380px', async ({ page }) => {
   await page.reload()
   await expect(page.getByRole('button', { name: 'Agent inbox · 1' })).toBeInViewport()
   await expect(page.getByRole('group', { name: 'Weekly outcome progress' })).toBeInViewport()
-  await expect(page.getByRole('button', { name: /log today|review today/i })).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Capture', exact: true })).toBeInViewport()
   await page.getByRole('button', { name: 'Agent inbox · 1' }).click()
   await expect(page.getByRole('dialog', { name: 'Agent inbox' })).toBeVisible()
   await expect(page.getByText('Review this agent note')).toBeVisible()

@@ -50,17 +50,22 @@ function MarkerCard({ marker }: { marker: MarkerSpec }) {
   const { metric } = marker
   const progress = metric.current === null || metric.target <= 0 ? 0 : Math.min(100, metric.current / metric.target * 100)
   return <article className="run-marker">
-    <header><span>Readiness marker</span><h3>{marker.title}</h3></header>
-    <div className="run-current">
-      <strong>{displayValue(metric.current, marker.unit)}</strong>
-      <span>of {displayValue(metric.target, marker.unit)} target</span>
+    <div className="run-marker-copy">
+      <header><span>Readiness marker</span><h3>{marker.title}</h3></header>
+      <div className="run-current">
+        <strong>{displayValue(metric.current, marker.unit)}</strong>
+        <span>of {displayValue(metric.target, marker.unit)} target</span>
+      </div>
+      <p className="run-context">{marker.context}</p>
     </div>
-    <div className="run-progress" role="progressbar" aria-label={`${marker.title} progress`} aria-valuemin={0} aria-valuemax={metric.target} aria-valuenow={Math.min(metric.target, metric.current ?? 0)} aria-valuetext={`${displayValue(metric.current, marker.unit)} of ${displayValue(metric.target, marker.unit)}`}>
-      <span style={{ width: `${progress}%` }} />
+    <div className="run-marker-progress">
+      <div className="run-progress" role="progressbar" aria-label={`${marker.title} progress`} aria-valuemin={0} aria-valuemax={metric.target} aria-valuenow={Math.min(metric.target, metric.current ?? 0)} aria-valuetext={`${displayValue(metric.current, marker.unit)} of ${displayValue(metric.target, marker.unit)}`}>
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      {metric.historyReady && <p className="run-trend">{trendLabel(metric, marker.unit)}</p>}
     </div>
-    <p className="run-context">{marker.context}</p>
     {metric.historyReady
-      ? <><History metric={metric} unit={marker.unit} title={marker.title} /><p className="run-trend">{trendLabel(metric, marker.unit)}</p></>
+      ? <History metric={metric} unit={marker.unit} title={marker.title} />
       : <p className="run-insufficient">Trend withheld · needs three completed months of data</p>}
   </article>
 }

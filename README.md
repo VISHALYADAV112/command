@@ -18,9 +18,10 @@ npm run test:e2e
 ```
 
 The frontend normally deploys to Vercel from `main`; backend deployment is a
-separate, manually dispatched GitHub Actions workflow. During the v3 migration,
-ongoing work stays on `command-v3` and the public alias remains pinned to the
-compatible Phase 4 deployment until the controlled Phase 8 cutover.
+separate, manually dispatched GitHub Actions workflow. Phase 8 is in a pre-write
+recovery state: the additive production backend cutover passed, while the public
+alias is pinned to exact Phase 4 until the corrected Gazette frontend passes
+owner acceptance and the remaining smoke gates.
 
 ## Live deployment
 
@@ -37,10 +38,10 @@ the source of truth when older specifications or prototypes conflict.
 - Three daily practice floors for Node, DSA, and Math; historical job-hunt
   minutes remain preserved while weekly outcomes track 15 submitted
   applications and 2 new people contacted.
-- Registry-driven v3 source routes for Today, Due, Week, Run, Browse, and universal Item,
+- Registry-driven v3 source routes for Today, Due, Calendar, Week, Run, Browse, and universal Item,
   with generic Capture/Edit, Schedule, Outcome, archive/restore, drafts, and
-  bounded pagination. These workflows remain off the public production alias
-  until the v3 data cutover.
+  bounded pagination. The corrected frontend remains off the public production
+  alias until its Phase 8 acceptance and smoke gates pass.
 - A bounded Monday–Sunday Week review shows the three practice budgets, weekly
   15/2 outcomes, pending future days, proposal activity, and commitment
   outcomes using `Asia/Kolkata` boundaries.
@@ -63,10 +64,11 @@ the source of truth when older specifications or prototypes conflict.
   encrypted in the database with the key held only server-side.
 - CSP headers, service-worker update prompt, dynamic JSON/per-type CSV export,
   and PWA install.
-- Remote MCP access through Supabase OAuth 2.1. The Phase 6 source now provides
+- Remote MCP access through Supabase OAuth 2.1. The Phase 6 source provides
   five generic registry-aware tools, narrow read/write/people permissions, safe
-  bounded queries, and an approval-gated Agent inbox. Production retains the
-  compatible Phase 4 gateway until the coordinated cutover.
+  bounded queries, and an approval-gated Agent inbox. The v3 function is
+  deployed, but MCP clients remain idle while the public frontend is
+  temporarily pinned to Phase 4.
 
 ## Connect an AI client
 

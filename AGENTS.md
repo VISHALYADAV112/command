@@ -69,6 +69,9 @@ CI runs all three on every push and PR. Do not push red.
 - Supabase OAuth scopes are identity-only. Command MCP permissions are separate
   owner/client application grants; connected-client tokens cannot access public
   tables, first-party mutation RPCs, permission management, or Calendar directly.
-- Until the coordinated Phase 8 cutover, v3 work stays on `command-v3` and the
-  public Vercel alias stays pinned to the compatible Phase 4 deployment. Do not
-  apply v3 migrations or deploy v3 Edge Functions to production early.
+- Phase 8 is at a pre-write recovery checkpoint: production migrations
+  `0013`–`0037`, the verified backfill, and both v3 Edge Functions are in place,
+  while the public Vercel alias is pinned to exact Phase 4 after the first
+  frontend candidate failed visual acceptance. Keep corrections on
+  `command-v3`; do not push, promote, move the alias, rerun the backfill, or make
+  the first v3 canonical write before the remaining acceptance/release gates.

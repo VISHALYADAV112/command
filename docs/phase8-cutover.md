@@ -5,10 +5,27 @@ implements the ordering in ADR 0003. It does not authorize a release: do not run
 anything labelled **production** or **external write** until the owner explicitly
 authorizes production access and the cutover.
 
-The public site remains on the Phase 4 deployment from `e2d5d15` until this
-runbook reaches the frontend-release gate. Production is expected to have
-migrations through `0012` only. Migrations `0013`–`0037`, the v3 Edge Functions,
-and the v3 frontend are not in production at the time this runbook is written.
+The original starting state for this runbook was a Phase 4 public site and
+production migrations through `0012` only.
+
+## Current recovery checkpoint — 2026-09-03
+
+The export, maintenance, migration, idempotent backfill, verification, and both
+function stages have now passed. Production has migrations `0013`–`0037`, the
+verified canonical backfill, and both v3 Edge Functions. The first frontend
+candidate failed owner visual acceptance before any v3 canonical user write, so
+the public alias was restored to exact Phase 4 deployment
+`dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from `e2d5d15`. Legacy tables are intact,
+the maintenance window has ended, and the private encrypted export/cutover
+record remain outside the repository.
+
+For the corrected frontend release, restart at the safe local release gate with
+a new immutable commit. Do not rerun already-applied migrations or the backfill
+merely to publish CSS/React changes. First obtain owner visual acceptance on the
+new Vercel candidate, then explicit authorization to move the public alias.
+Resume the smoke sequence at authenticated read-only checks and record the first
+successful v3 canonical write as the fix-forward boundary. Keep MCP clients
+idle until that sequence passes.
 
 ## Safety properties
 

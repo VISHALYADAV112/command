@@ -5,7 +5,7 @@ import { McpConnections } from './McpConnections'
 import { TypeRegistrySettings } from './TypeRegistrySettings'
 import type { EntityType, Settings } from './types'
 import type { CommandMode } from './useCommandData'
-import { ConfirmSheet, Sheet } from './ui'
+import { ConfirmSheet, Sheet, ViewShell } from './ui'
 import {
   disconnectCalendar, getCalendarStatus, startCalendarConnect, type CalendarStatus,
 } from './lib/calendar'
@@ -21,7 +21,9 @@ export function SettingsSheet({
   onClose,
   onOpenWeek,
   onOpenRun,
+  onOpenCalendar,
   onExport,
+  inline = false,
 }: {
   settings: Settings
   entityTypes: EntityType[]
@@ -33,7 +35,9 @@ export function SettingsSheet({
   onClose: () => void
   onOpenWeek: () => void
   onOpenRun: () => void
+  onOpenCalendar?: () => void
   onExport: (kind: 'json' | 'csv', table?: string) => void
+  inline?: boolean
 }) {
   const [draft, setDraft] = useState(settings)
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
@@ -91,9 +95,7 @@ export function SettingsSheet({
 
   const budgetNote = dailyPractices.map(({ key, label }) => `${label} ${hours(draft.budgets[key])}h`).join(' · ')
 
-  return (
-    <>
-    <Sheet title="Targets & data" eyebrow="Settings" onClose={onClose}>
+  const content = <div className="settings-content">
         <div className="settings-group">
           <h3>Edition</h3>
           <p className="settings-hint">Choose the paper treatment that stays with this browser and account.</p>
@@ -118,6 +120,7 @@ export function SettingsSheet({
           <div className="settings-actions">
             <button className="secondary-button" type="button" onClick={onOpenWeek}>Open weekly review</button>
             <button className="secondary-button" type="button" onClick={onOpenRun}>Open monthly Run</button>
+            {onOpenCalendar && <button className="secondary-button" type="button" onClick={onOpenCalendar}>Open Calendar</button>}
           </div>
         </div>
 
@@ -180,7 +183,13 @@ export function SettingsSheet({
             <button className="secondary-button" type="button" onClick={() => mode === 'live' ? onSignOut() : setConfirmation('reset')}>{mode === 'live' ? 'Sign out' : 'Reset prototype data'}</button>
           </div>
         </div>
-    </Sheet>
+  </div>
+
+  return (
+    <>
+    {inline
+      ? <main><ViewShell eyebrow="Section 07 · Registry & preferences" title="Preferences" aside={budgetNote}><div className="settings-page">{content}</div></ViewShell></main>
+      : <Sheet title="Targets & data" eyebrow="Settings" onClose={onClose}>{content}</Sheet>}
     {confirmation && <ConfirmSheet
       title={confirmation === 'disconnect' ? 'Disconnect Google Calendar?' : 'Reset prototype data?'}
       detail={confirmation === 'disconnect' ? 'Command will revoke its Calendar access and forget all linked event records.' : 'All locally saved Command data and target settings will be removed from this browser.'}

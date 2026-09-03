@@ -1,7 +1,7 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 3.0
+**Plan version:** 3.1
 **Created:** 2026-08-30
 **Last updated:** 2026-09-03
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
@@ -61,12 +61,12 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 5. Build the core v3 product workflows | **Complete** | Today, Due, Browse, Item, and overlays pass the corrected implementation gate |
 | 6. Rebuild MCP and agent review | **Complete** | Dynamic tools, permissions, approval, and provenance pass |
 | 7. Add review, readiness, export, and integrations | **Complete** | Week, Run, settings, export, and Calendar rules work |
-| 8. Cut over, harden, and retire legacy paths | **Not started** | Production smoke tests and final completion gate pass |
+| 8. Cut over, harden, and retire legacy paths | **In progress** | Production smoke tests and final completion gate pass |
 
-**Active phase:** None. Phase 7 is complete and Phase 8 has not started.
-**Current blocker:** None for Phase 7. Phase 8 intentionally requires explicit production-cutover authorization and a maintenance window before it begins.
-**Repository state:** GitHub `main` remains at `e1b6676`, while the public Vercel alias remains pinned to the compatible Phase 4 deployment from `e2d5d15` described in `docs/deployment.md`. The corrected Phase 5, completed Phase 6, and completed Phase 7 implementation remain isolated on the local `command-v3` branch; Phase 6 is recorded by local commit `1cf9ff7` and Phase 7 by local commit `0dc0cd2`. All v3 migrations `0013`–`0037` were applied only to the local Supabase environment. No production database migration, Supabase function deployment, production frontend change, or production-data change was performed.
-**Next slice:** After explicit cutover authorization, follow `docs/phase8-cutover.md`: produce and verify the encrypted/private production export before applying any migration, then announce and use the short single-user maintenance window for the final transactional, idempotent backfill and cutover.
+**Active phase:** Phase 8. The backend cutover passed, but the first v3 frontend candidate failed visual acceptance before any v3 canonical user write. The public alias was restored to the exact Phase 4 deployment while the Gazette UI is rebuilt locally.
+**Current blocker:** The replacement frontend must pass local visual/responsive verification and owner acceptance before any new push, Vercel promotion/alias move, authenticated production write, or completion smoke test. A new external release action requires explicit authorization.
+**Repository state:** Local `main`, `command-v3`, `origin/main`, and `origin/command-v3` started this correction at Phase 8 preparation commit `ad56848`. The Gazette v12 correction is local on `command-v3` and has not been pushed. The public alias `https://command-beta-flax.vercel.app/` points to Vercel deployment `dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from Phase 4 commit `e2d5d15`. Production migrations `0013`–`0037` and the verified idempotent backfill have run; legacy tables remain untouched, both v3 Edge Functions are deployed with request-level authentication, and no first v3 canonical user write has occurred. The encrypted verified pre-cutover export and private cutover record remain outside the repository.
+**Next slice:** Finish and commit the local Gazette correction without pushing. After owner visual acceptance and explicit release authorization, create/verify the Vercel candidate from that immutable commit, move the public alias only after its gates pass, then resume at authenticated read-only smoke checks before deliberately recording the first v3 write.
 
 ---
 
@@ -112,12 +112,12 @@ Managing work becomes simpler: instead of remembering which screen contains a du
 
 | ID | Proposed decision | Reason | Status |
 |---|---|---|---|
-| D-01 | Adopt the Gazette visual direction, rebuilt mobile-first in React/CSS | The desktop hierarchy is strong; the prototype code is not production or responsive | **Approved 2026-08-31** |
+| D-01 | Treat `command-gazette-app-v12.html` as the exact desktop visual contract, rebuilt in repo-native React/CSS; recompose its layout, not its identity, for phones | The supplied desktop design is the accepted product surface, while its fixed tables and absent media rules cannot be shipped on phones | **Amended and approved 2026-09-03** |
 | D-02 | Keep canonical state in `entities` and `commitments`; use `activity_events` as an immutable audit log | Delivers provenance and safe retries without requiring full event replay and projections | **Approved 2026-08-31** |
 | D-03 | Put untrusted MCP writes in `agent_proposals`; approval applies them transactionally | A pending event cannot also be immutable without a second approval model | **Approved 2026-08-31** |
 | D-04 | Add an explicit generic `entities` table | Registry-driven Browse, Item, and Capture cannot work from `entity_types` alone | **Approved 2026-08-31** |
 | D-05 | Treat plugins as internal behaviour strategies; do not let them add public MCP tools | Preserves the fixed five-tool surface | **Approved 2026-08-31** |
-| D-06 | Defer the standalone Calendar route until after core v3 usage; retain Calendar integration | The IA specifies seven screens while v12 adds an eighth; Due already owns dated work | **Approved 2026-08-31** |
+| D-06 | Include the standalone canonical Calendar route from v12 while keeping Google Calendar export a separate explicit action | Visual acceptance requires the full v12 information architecture; the route is a read-only date surface over existing commitments and adds no external-write path | **Amended and approved 2026-09-03** |
 | D-07 | Remove Ideas as a dedicated screen, but preserve all idea data as note records tagged `idea` | No data loss and no ongoing dedicated-module cost | **Approved 2026-08-31** |
 | D-08 | Use visibility-change refresh first; add realtime only if it proves necessary | Simplest reliable solution for a single user and a few writers | **Approved 2026-08-31** |
 | D-09 | Archive records by default; do not expose hard delete in normal workflows | Fits auditability and makes agent/user mistakes recoverable | **Approved 2026-08-31** |
@@ -128,7 +128,7 @@ Managing work becomes simpler: instead of remembering which screen contains a du
 - [x] **Job-hunt unit:** Weekly targets are 15 submitted applications and 2 new people contacted. Preserve historical `job_minutes` as minutes; never reinterpret it as a count, and do not collect job hunt as a new daily floor in v3.
 - [x] **Today priority:** Today is exception-first only when an overdue commitment exists. Otherwise the three practice floors lead.
 - [x] **First viewport:** At 380px, the urgent exception or floor summary, weekly application progress, and primary action are visible without scrolling.
-- [x] **Calendar surface:** The standalone Calendar route is deferred. Google Calendar integration remains.
+- [x] **Calendar surface:** Include a standalone canonical commitment Calendar route. Google Calendar export remains a separate manual, allow-listed integration action.
 - [x] **Calendar sync rule:** Export is manual and initially limited to interviews, hard deadlines, and important milestones.
 - [x] **Agent trust:** Every MCP write requires approval initially. Later trust may be granted only by the combination of client, operation, and entity type. Calendar writes always require explicit approval.
 - [x] **Type creation power:** Settings may create data-only types and select only allow-listed built-in behaviour plugins.
@@ -197,13 +197,14 @@ Promote events to canonical truth only if real requirements appear for replay, t
 |---|---|---|
 | `/#/` | Today | Immediate status, exception, floors, weekly target, short queue, agent indicator |
 | `/#/due` | Due | Unified open commitment queue with window and type filters |
+| `/#/calendar` | Calendar | Desktop month grid and phone agenda derived from canonical commitment dates |
 | `/#/t/:type` | Browse | Registry-driven list, search, filters, sort, and capture |
 | `/#/i/:id` | Item | Universal detail, commitments, history, edit, schedule, archive |
 | `/#/week` | Week | Monday–Sunday execution and movement review |
 | `/#/run` | Run | Monthly readiness and outcome markers |
 | `/#/settings` | Settings | Targets, types, integrations, export, theme, audit access |
 
-`/#/calendar` is deferred unless D-06 changes. Calendar integration remains available from commitments and Settings.
+Google Calendar integration remains available from eligible commitments and Settings; browsing the Calendar route never writes to Google.
 
 ### 5.2 Global overlays and sheets
 
@@ -222,7 +223,7 @@ Every overlay must restore focus, scroll position, filters, and route context wh
 
 **Mobile, starting at 380px**
 
-- Compact wordmark; do not render the full desktop masthead on every visit.
+- Preserve the Gazette masthead identity in a compact, non-overflowing treatment.
 - Bottom navigation: Today, Due, Capture, Browse, More.
 - Single-column content and forms.
 - No fixed desktop grids, clipped content, horizontal scaling, or horizontal scrolling.
@@ -231,7 +232,7 @@ Every overlay must restore focus, scroll position, filters, and route context wh
 
 **Desktop**
 
-- Full Gazette masthead may appear on Today; use a compact header on secondary screens if repeated height harms task speed.
+- Use the full Gazette masthead consistently across primary routes.
 - Wider registry tables may show additional schema-marked columns.
 - Sheets become centred dialogs.
 - Due and Today may share visual context, but routes remain linkable and independent.
@@ -790,6 +791,13 @@ Progress (2026-08-31):
 - Added Playwright coverage for 380px, 390px, 768px, 1280px, every legacy type route at 380px, empty sections, 200-character titles, and large captured notes; `npm run test:e2e` passes 10/10.
 - Exit gate verified: no horizontal overflow, first-viewport hierarchy is visible at 380px, and keyboard/screen-reader-oriented Sheet and navigation behavior pass tests.
 
+Visual-acceptance correction (2026-09-03):
+
+- Rebuilt the shell and all v3 routes against the supplied v12 artifact as the exact desktop contract, including its local Playfair Display, Newsreader, IBM Plex Mono, and Noto Sans Brahmi assets; no external font dependency or embedded artifact runtime was introduced.
+- Replaced the prior generic Phase 4 treatment with the v12 dateline, masthead, maxim, rules, vermilion exception lead, four-desk floor field, compact queue/table language, registry rows, Week/Run reviews, and full-page preferences.
+- Added the now-approved canonical `/#/calendar` surface: a month grid on desktop and a deliberately recomposed agenda on phones. It reads existing commitments only and does not alter the explicit Google Calendar export boundary.
+- Kept the five-action phone rail and rebuilt dense grids as bounded cards/lists. Verified zero horizontal overflow at 360px, 380px, 390px, 768px, and 1280px, with dialogs layered above the mobile rail.
+
 ### Phase 5 — Build the core v3 product workflows
 
 **Status:** Complete
@@ -887,7 +895,7 @@ Tasks:
 - [x] Implement dynamic JSON and per-type CSV export.
 - [x] Generalise Calendar event mapping from applications/projects to approved commitment kinds.
 - [x] Preserve Calendar idempotency, unlinking, refresh, and encrypted tokens.
-- [x] Decide whether a Calendar route has earned inclusion; D-06 remains unchanged, so no route was added.
+- [x] Decide whether a Calendar route has earned inclusion. Phase 7 initially deferred it; PLAN-030 superseded that decision during Phase 8 visual-acceptance repair.
 - [x] Add derived-query, export, plugin, and Calendar tests.
 
 Progress verified on 2026-09-02:
@@ -919,7 +927,7 @@ Progress verified on 2026-09-02:
 - Separated OAuth identity grants from all four Command application permissions in Settings, including per-client grant editing, revocation, last activity, and bounded private MCP audit access. Installed Supabase Auth types confirm `getAuthorizationDetails` supplies the `client.id` and `user.id` consumed by the consent screen.
 - Replaced legacy export shapes with canonical v3 JSON and schema-driven per-type CSV that includes archived rows and deprecated fields with correct escaping.
 - Generalised manual Calendar export to approved open commitments: deadlines, milestones, and explicitly labelled mock-interview drills. The Edge Function re-reads owner-scoped canonical rows, maps content server-side, uses deterministic Google event ids, updates existing links, unlinks closed/ineligible records, records provenance, and keeps OAuth-client access blocked.
-- Extracted Calendar token storage to authenticated AES-256-GCM encryption with a random IV and exact 32-byte key validation. Settings retains connect, verification, last-sync, disconnect, and revocation state; no standalone Calendar route was added because D-06 remains valid.
+- Extracted Calendar token storage to authenticated AES-256-GCM encryption with a random IV and exact 32-byte key validation. At Phase 7 completion, Settings retained connect, verification, last-sync, disconnect, and revocation state while the standalone route was still deferred; PLAN-030 later added only the canonical read surface.
 - Added append-only local migrations `0034_v3_phase7_plugins_and_registry.sql`, `0035_v3_plugin_outcome_qualification_fix.sql`, `0036_v3_plugin_registry_guard.sql`, and `0037_v3_plugin_retry_result_fix.sql`; each correction after local application was added as a new migration rather than rewriting history.
 - Targeted MCP/auth/API/Agent/consent/Calendar/plugin/Week/Run coverage: 13 files / 59 tests passed.
 - Targeted Phase 7 database coverage: 1 file / 24 assertions passed.
@@ -940,7 +948,7 @@ Exit gate:
 
 ### Phase 8 — Cut over, harden, and retire legacy paths
 
-**Status:** Not started
+**Status:** In progress
 
 Preparation completed on 2026-09-03 without starting the phase: the production
 runbook now separates safe local work from every production/external command,
@@ -948,6 +956,24 @@ the backend workflow has independent migration and function stages pinned to a
 full release SHA, and repo-owned SQL provides the bounded pre-export report plus
 atomic idempotent backfill/verification gate. No production access, export,
 migration, deployment, push, alias change, or external-system mutation occurred.
+
+Cutover checkpoint on 2026-09-03:
+
+- Explicit authorization was received, the production database password was reset privately, and the required encrypted export was created, checksum-verified, decrypt/compare-verified, and retained outside the repository with private permissions. No secret or production payload was printed or committed.
+- The maintenance window was announced and used. Production migrations `0013`–`0037` were applied through the staged workflow; the serializable backfill and its idempotent second pass balanced ownership, entities, commitments, events, compatibility exports, and Calendar relinking before the functions stage.
+- Both v3 Edge Functions were deployed with `--no-verify-jwt`. The v3 frontend candidate from `ad56848` was built by the existing GitHub–Vercel integration.
+- Visual acceptance failed before the first v3 canonical user write. The public alias was restored to exact Phase 4 deployment `dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from `e2d5d15`, and the maintenance window ended. Production database additions and v3 functions remain in place; legacy data remains intact.
+- Phase 8 continues as a frontend fix-forward from the preserved backend checkpoint. MCP clients should remain idle until the accepted v3 frontend is public and the remaining smoke/stabilisation gates pass.
+
+Gazette correction verification on 2026-09-03:
+
+- Compared the local day-edition desktop render at 1440px directly with the supplied v12 artifact and inspected Today, Due, Calendar, Browse, Week, Run, Preferences, and the phone Calendar/Today compositions. The night palette was also rendered.
+- Measured document width equal to viewport width at 360px, 380px, 390px, 768px, and 1280px. Dense commitment, execution, registry, Run, and Calendar surfaces recompose without a second scroll axis; dialogs sit above the fixed phone rail.
+- `npm test`: 22 files / 97 tests passed.
+- `npx tsc -b`: passed with no errors.
+- `npm run build`: passed with only the existing non-blocking chunk-size warning.
+- `npm run test:e2e`: 18/18 passed, including the new desktop-month/mobile-agenda Calendar contract and all existing capture, outcome, recall, type-registry, Agent inbox, route-width, and PWA flows.
+- `git diff --check`: passed before final documentation and will be rerun at the commit gate.
 
 Preparation verification on 2026-09-03:
 
@@ -971,11 +997,14 @@ Preparation verification on 2026-09-03:
 
 Tasks:
 
-- [ ] Produce an encrypted/private production export before migration.
-- [ ] Announce and use a short single-user maintenance window for final backfill/cutover.
-- [ ] Apply additive migrations and run the final idempotent backfill.
-- [ ] Verify counts, fields, commitments, and ownership before frontend deployment.
-- [ ] Deploy v3 frontend and edge functions.
+- [x] Produce an encrypted/private production export before migration.
+- [x] Announce and use a short single-user maintenance window for final backfill/cutover.
+- [x] Apply additive migrations and run the final idempotent backfill.
+- [x] Verify counts, fields, commitments, and ownership before frontend deployment.
+- [x] Deploy both v3 Edge Functions with `--no-verify-jwt`.
+- [x] Restore the exact Phase 4 public frontend before any v3 write after the first frontend candidate failed visual acceptance.
+- [x] Rebuild the v3 frontend locally against the exact Gazette v12 desktop contract and a bounded smartphone composition.
+- [ ] Obtain owner acceptance and publish the corrected v3 frontend at the public alias.
 - [ ] Run production smoke tests for auth, Today, Capture, Outcome, Calendar, MCP consent, proposal approval, export, PWA update, and sign-out.
 - [ ] Monitor audit/error state through the stabilisation window.
 - [ ] Fix forward after v3 writes begin; do not destructively roll the database back.
@@ -1147,6 +1176,7 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2026-09-02 | PLAN-027 | Fix Run at targets 3 public portfolios, 24 mastered DSA patterns, 10 explicitly labelled mock-interview drills, 25% application-to-first-round conversion, and 12 distinct completed person contacts | The approved marker names lacked implementable filters and targets; the final contract must use only canonical entities, commitments, and immutable activity without a special-purpose table or column | `get_v3_run` may add one bounded derived-read RPC; count history is cumulative over three completed owner-local months, conversion uses monthly submission cohorts, and missing coverage suppresses trends rather than inventing a slope |
 | 2026-09-02 | PLAN-028 | Keep spaced repetition as the first allow-listed behaviour plugin and make Calendar export a manual, commitment-scoped, server-mapped first-party action | Plugin code must remain bounded and testable, while Calendar content and eligibility cannot be trusted to browser or MCP payloads | Outcome may atomically create an adjustable plugin follow-on; only open deadlines, milestones, and explicit mock-interview drills are eligible; deterministic provider ids, owner-scoped reads, encrypted tokens, unlinking, and provenance preserve safe retries |
 | 2026-09-03 | PLAN-029 | Use a short single-user maintenance window and split the backend release into migration and function stages around a serializable backfill/verification gate | Compatibility writes would add unnecessary dual-write risk, while the existing all-in-one workflow could deploy functions before production data was proven | The authorized operator first verifies a private encrypted export, idles all writers, applies migrations only, runs the backfill twice with exact compatibility/ownership/provenance checks, then deploys functions and the frontend from one immutable SHA |
+| 2026-09-03 | PLAN-030 | Restore the exact Phase 4 public frontend and rebuild v3 against the supplied Gazette v12 desktop contract, with a responsive phone recomposition and the v12 Calendar route | The first v3 candidate failed owner visual acceptance before the first canonical write; the backend is already structured to drive the accepted design without another migration | Keep the verified additive backend and v3 functions, pin the public alias to Phase 4 during the correction, preserve the fixed five-action mobile rail, add only a read-only canonical Calendar surface, and require owner acceptance plus explicit release authorization before moving the alias again |
 
 ---
 
@@ -1176,3 +1206,4 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2.8 | 2026-09-02 | Defined and implemented the five Run markers at targets 3/24/10/25%/12, added bounded owner-scoped migration `0033`, rendered honest three-completed-month or insufficient-history states at `/#/run`, kept the monthly review under More, and added application/database/mobile-browser coverage; the existing recall schedule is the next behaviour-plugin slice |
 | 2.9 | 2026-09-02 | Completed Phase 7 with the allow-listed behaviour-plugin contract and adjustable atomic recall follow-ons, registry/target/integration settings, canonical dynamic exports, manual server-mapped commitment Calendar export, AES-256-GCM token storage, append-only migrations `0034`–`0037`, and full application/browser/database/edge verification; Phase 8 remains unstarted pending explicit production-cutover authorization |
 | 3.0 | 2026-09-03 | Completed Phase 8 preparation without starting the phase: added the exact encrypted-export/cutover/smoke/fix-forward runbook, split the backend workflow into SHA-pinned migration and function stages, and added transactional preflight/backfill verification SQL; production remains untouched pending explicit authorization |
+| 3.1 | 2026-09-03 | Recorded the executed backend cutover and pre-write frontend rollback, marked Phase 8 in progress, amended D-01/D-06 for the exact v12 desktop contract and canonical Calendar route, and completed the local Gazette/responsive correction while the public alias remains on exact Phase 4 |

@@ -21,14 +21,23 @@ today.
 The app retains hash routes. Vercel therefore needs no SPA rewrite for current
 deep links, and existing `/#/...` bookmarks remain valid.
 
-### Temporary v3 release pin
+### Current Phase 8 recovery pin
 
-The public alias currently points to the Phase 4 deployment from commit
-`e2d5d15`. Phase 5 was briefly deployed before the v3 production tables existed
-and correctly failed on the missing `public.entity_types` dependency. Remaining
-v3 work therefore continues on `command-v3`; do not move the production alias
-or merge that branch to the Vercel production branch until the Phase 8 export,
-migration, backfill, verification, and smoke-test procedure is authorised.
+The public alias currently points to the exact Phase 4 deployment
+`dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from commit `e2d5d15`. The first v3 frontend
+candidate from `ad56848` reached Vercel only after the production export,
+migrations, backfill, and function gates passed, but it failed owner visual
+acceptance before the first v3 canonical user write. The alias was therefore
+restored to Phase 4 while the accepted Gazette v12 UI is rebuilt on the local
+`command-v3` branch.
+
+Production Postgres now has additive migrations `0013`–`0037` and the verified
+idempotent canonical backfill. Both v3 Edge Functions are deployed, and the
+legacy tables remain untouched. This is a compatible pre-write recovery state:
+do not repeat the migrations/backfill, push the local correction, promote a
+Vercel candidate, move the alias, or perform the first v3 write without the
+remaining Phase 8 gates and explicit release authorization. Keep MCP clients
+idle until the accepted frontend is public and smoke-tested.
 
 ## Frontend configuration and release
 
@@ -111,11 +120,13 @@ idempotently, and closing or archiving the source unlinks the event. Google
 refresh tokens remain AES-256-GCM encrypted with the edge-only
 `GOOGLE_TOKEN_KEY`.
 
-All v3 migrations `0013`–`0037` remain local-only. Migrations `0026`–`0032` are
-Phase 6 security and agent work; `0033`–`0037` add the bounded Run read,
-registry administration, atomic plugin outcomes, plugin-schema enforcement,
-and exact retry results. None has been applied to production, and neither v3
-Edge Function has been deployed for these phases.
+V3 migrations `0013`–`0037` are applied to both local and production Supabase.
+Migrations `0026`–`0032` are Phase 6 security and agent work; `0033`–`0037` add
+the bounded Run read, registry administration, atomic plugin outcomes,
+plugin-schema enforcement, and exact retry results. Both v3 Edge Functions are
+deployed in production with `--no-verify-jwt` and retain their required
+request-level authentication. The public frontend remains Phase 4 until the
+corrected Gazette candidate passes acceptance and the remaining smoke gate.
 
 Do not run the production workflow merely to verify a code change. Migration
 application, function deployment, and production smoke tests require an

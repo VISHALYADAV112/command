@@ -40,3 +40,16 @@ The cutover order is:
   frontend load.
 - After the first successful v3 production write, fixes move forward; the
   database is not destructively rolled back and legacy tables remain intact.
+
+## Execution checkpoint — 2026-09-03
+
+Steps 1–5 passed through the backend and candidate-frontend deployment. The
+candidate then failed owner visual acceptance before the first canonical v3
+write. In accordance with the pre-write boundary, the exact Phase 4 frontend
+was restored while the additive v3 database, verified backfill, v3 functions,
+legacy tables, encrypted export, and private cutover record were preserved.
+
+The corrected Gazette frontend is a new immutable release candidate. It must
+pass local verification, owner visual acceptance, explicit release
+authorization, and authenticated read-only smoke checks before the alias moves
+and the first write establishes the fix-forward boundary.
