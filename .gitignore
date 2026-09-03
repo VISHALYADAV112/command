@@ -26,3 +26,12 @@ supabase/.branches/
 vite.config.js
 vite.config.d.ts
 .vercel
+
+# Production cutover artifacts — keep real exports outside the worktree too
+/cutover-artifacts/
+*.production-schema.sql
+*.production-data.sql
+*.production-report.txt
+*.production-backup.tar
+*.production-backup.enc
+*.production-backup.enc.sha256

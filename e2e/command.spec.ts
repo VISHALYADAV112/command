@@ -107,6 +107,7 @@ test('keeps every Phase 5 route inside the approved narrow viewport', async ({ p
 
 test('shows the bounded Week review and keeps future days pending at 380px', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-09-02T06:00:00.000Z'))
+  await page.reload()
   await page.setViewportSize({ width: 380, height: 844 })
   await page.goto('/#/week')
 
@@ -127,6 +128,7 @@ test('shows the bounded Week review and keeps future days pending at 380px', asy
 
 test('shows all five Run markers without inventing missing trends at 380px', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-09-02T06:00:00.000Z'))
+  await page.reload()
   await page.setViewportSize({ width: 380, height: 844 })
   await page.goto('/#/run')
 

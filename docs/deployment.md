@@ -73,13 +73,21 @@ Supabase injects its own URL, publishable key, and service-role key into the
 function runtime. None of the secrets above belongs in the repository or a
 browser build.
 
-The manual workflow performs these steps in order:
+The manual workflow has two deliberately separate stages, both pinned to an
+explicit full release SHA:
 
-1. Link the configured Supabase project.
-2. Apply pending append-only migrations with `supabase db push`.
-3. Enable the Supabase OAuth server and dynamic client registration for MCP.
-4. Deploy `google-calendar --no-verify-jwt`.
-5. Deploy `command-mcp --no-verify-jwt`.
+1. `migrations` links the configured project, previews pending append-only
+   migrations, and applies them with `supabase db push`.
+2. The operator runs the private, transactional backfill/verification gate.
+3. `functions` enables the Supabase OAuth server and dynamic client registration
+   for MCP, then deploys `google-calendar --no-verify-jwt` and
+   `command-mcp --no-verify-jwt`.
+
+The split prevents function deployment from racing ahead of production data
+verification. The exact export, maintenance, migration, backfill, release,
+smoke-test, and fix-forward gates are in
+[`phase8-cutover.md`](phase8-cutover.md). That runbook requires separate explicit
+production-cutover authorization; documenting it does not start Phase 8.
 
 The functions deliberately validate requests themselves. Calendar must accept
 the unauthenticated Google OAuth callback, which is protected by one-time state
@@ -103,11 +111,11 @@ idempotently, and closing or archiving the source unlinks the event. Google
 refresh tokens remain AES-256-GCM encrypted with the edge-only
 `GOOGLE_TOKEN_KEY`.
 
-Migrations `0026`–`0032` are local-only Phase 6 work. Phase 7 migrations
-`0033`–`0037` add the bounded Run read, registry administration, atomic plugin
-outcomes, plugin-schema enforcement, and exact retry results. None has been
-applied to production, and neither v3 Edge Function has been deployed for
-these phases.
+All v3 migrations `0013`–`0037` remain local-only. Migrations `0026`–`0032` are
+Phase 6 security and agent work; `0033`–`0037` add the bounded Run read,
+registry administration, atomic plugin outcomes, plugin-schema enforcement,
+and exact retry results. None has been applied to production, and neither v3
+Edge Function has been deployed for these phases.
 
 Do not run the production workflow merely to verify a code change. Migration
 application, function deployment, and production smoke tests require an

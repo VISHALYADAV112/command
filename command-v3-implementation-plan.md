@@ -1,9 +1,9 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 2.9
+**Plan version:** 3.0
 **Created:** 2026-08-30
-**Last updated:** 2026-09-02
+**Last updated:** 2026-09-03
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
 
 ---
@@ -65,8 +65,8 @@ When these documents conflict after this plan is approved, this plan wins until 
 
 **Active phase:** None. Phase 7 is complete and Phase 8 has not started.
 **Current blocker:** None for Phase 7. Phase 8 intentionally requires explicit production-cutover authorization and a maintenance window before it begins.
-**Repository state:** GitHub `main` remains at `e1b6676`, while the public Vercel alias remains pinned to the compatible Phase 4 deployment from `e2d5d15` described in `docs/deployment.md`. The corrected Phase 5, completed Phase 6, and completed Phase 7 implementation remain isolated on the local `command-v3` branch; Phase 6 is recorded by local commit `1cf9ff7`. Phase 6 migrations `0026`–`0032` and Phase 7 migrations `0033`–`0037` were applied only to the local Supabase environment. No production database migration, Supabase function deployment, production frontend change, or production-data change was performed.
-**Next slice:** After explicit cutover authorization, produce and verify an encrypted/private production export before applying any migration; then announce and use the short single-user maintenance window for the final backfill and cutover.
+**Repository state:** GitHub `main` remains at `e1b6676`, while the public Vercel alias remains pinned to the compatible Phase 4 deployment from `e2d5d15` described in `docs/deployment.md`. The corrected Phase 5, completed Phase 6, and completed Phase 7 implementation remain isolated on the local `command-v3` branch; Phase 6 is recorded by local commit `1cf9ff7` and Phase 7 by local commit `0dc0cd2`. All v3 migrations `0013`–`0037` were applied only to the local Supabase environment. No production database migration, Supabase function deployment, production frontend change, or production-data change was performed.
+**Next slice:** After explicit cutover authorization, follow `docs/phase8-cutover.md`: produce and verify the encrypted/private production export before applying any migration, then announce and use the short single-user maintenance window for the final transactional, idempotent backfill and cutover.
 
 ---
 
@@ -620,10 +620,10 @@ The source proposal and prototypes do not yet define the following well enough t
 
 ### Operational gaps
 
-- No exact production cutover procedure exists yet.
-- No v2-to-v3 backup and verification report format exists.
-- No decision has been made about a maintenance window versus compatibility writes.
-- Old bookmarks need a redirect/mapping policy.
+- The exact production cutover, smoke-test, monitoring, and fix-forward procedure is defined in `docs/phase8-cutover.md`; executing it remains explicitly unauthorized.
+- The v2-to-v3 backup format is a private, encrypted `public` schema/data export with bounded before/after reports, checksum and byte-for-byte decryption verification. Production data and reports never enter Git, CI artifacts, issues, or pull requests.
+- PLAN-029 selects a short single-user maintenance window rather than compatibility writes. The backfill locks the legacy sources and runs twice inside one serializable transaction before functions or frontend deployment.
+- Existing hash bookmarks remain valid, and the useful legacy hash routes already map to v3 routes from Phase 5.
 - README, `AGENTS.md`, and deployment documentation consistently describe the Vercel frontend, Supabase backend, isolated v3 branch, and controlled Phase 8 cutover.
 - The original 1–2 week estimate does not include a safe migration, responsive implementation, and full verification.
 
@@ -942,6 +942,33 @@ Exit gate:
 
 **Status:** Not started
 
+Preparation completed on 2026-09-03 without starting the phase: the production
+runbook now separates safe local work from every production/external command,
+the backend workflow has independent migration and function stages pinned to a
+full release SHA, and repo-owned SQL provides the bounded pre-export report plus
+atomic idempotent backfill/verification gate. No production access, export,
+migration, deployment, push, alias change, or external-system mutation occurred.
+
+Preparation verification on 2026-09-03:
+
+- The pre-migration SQL deliberately rejected the already-migrated local schema;
+  the backfill gate passed against empty and representative disposable local
+  single-owner data. The representative report balanced five entities, five
+  commitments, twelve migration events, exact JSON/CSV compatibility, one
+  Calendar relink, zero pending links, and an unchanged second pass. The local
+  fixture was removed and the immutable-event trigger was confirmed enabled.
+- Workflow YAML parsing, backup-artifact ignore checks, and `git diff --check`
+  passed.
+- `npm test`: 22 files / 97 tests passed.
+- `npx tsc -b`: passed with no errors.
+- `npm run build`: passed with only the existing chunk-size warning.
+- `npm run test:e2e`: 17/17 passed after making the fixed-time Week/Run setup
+  survive route initialization.
+- `npm run test:db`: 13 files / 377 assertions passed.
+- `npx supabase db lint --local --level warning`: clean.
+- Deno checks passed for both Edge Functions, using the function import map for
+  `command-mcp` and the existing no-config check for `google-calendar`.
+
 Tasks:
 
 - [ ] Produce an encrypted/private production export before migration.
@@ -1119,6 +1146,7 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2026-09-02 | PLAN-026 | Deny Supabase OAuth-client tokens direct access to Command tables, first-party mutation RPCs, and Calendar; let the MCP edge read only through explicitly owner-scoped service queries | Supabase OAuth access tokens use the normal `authenticated` database role, so tool-level permissions alone would otherwise be bypassable through PostgREST or existing UI RPCs | Restrictive RLS and guarded RPCs keep the five-tool MCP boundary authoritative; application permission rows cannot be self-escalated and Calendar stays first-party only |
 | 2026-09-02 | PLAN-027 | Fix Run at targets 3 public portfolios, 24 mastered DSA patterns, 10 explicitly labelled mock-interview drills, 25% application-to-first-round conversion, and 12 distinct completed person contacts | The approved marker names lacked implementable filters and targets; the final contract must use only canonical entities, commitments, and immutable activity without a special-purpose table or column | `get_v3_run` may add one bounded derived-read RPC; count history is cumulative over three completed owner-local months, conversion uses monthly submission cohorts, and missing coverage suppresses trends rather than inventing a slope |
 | 2026-09-02 | PLAN-028 | Keep spaced repetition as the first allow-listed behaviour plugin and make Calendar export a manual, commitment-scoped, server-mapped first-party action | Plugin code must remain bounded and testable, while Calendar content and eligibility cannot be trusted to browser or MCP payloads | Outcome may atomically create an adjustable plugin follow-on; only open deadlines, milestones, and explicit mock-interview drills are eligible; deterministic provider ids, owner-scoped reads, encrypted tokens, unlinking, and provenance preserve safe retries |
+| 2026-09-03 | PLAN-029 | Use a short single-user maintenance window and split the backend release into migration and function stages around a serializable backfill/verification gate | Compatibility writes would add unnecessary dual-write risk, while the existing all-in-one workflow could deploy functions before production data was proven | The authorized operator first verifies a private encrypted export, idles all writers, applies migrations only, runs the backfill twice with exact compatibility/ownership/provenance checks, then deploys functions and the frontend from one immutable SHA |
 
 ---
 
@@ -1147,3 +1175,4 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2.7 | 2026-09-02 | Completed the first Phase 7 slice with a responsive Week route backed by the bounded `get_v3_week` contract, India-local Monday–Sunday execution, three practice budgets, 15/2 outcomes, pending future days, proposal and commitment outcomes, empty-state coverage, and no database migration; Run-marker filters and targets are next |
 | 2.8 | 2026-09-02 | Defined and implemented the five Run markers at targets 3/24/10/25%/12, added bounded owner-scoped migration `0033`, rendered honest three-completed-month or insufficient-history states at `/#/run`, kept the monthly review under More, and added application/database/mobile-browser coverage; the existing recall schedule is the next behaviour-plugin slice |
 | 2.9 | 2026-09-02 | Completed Phase 7 with the allow-listed behaviour-plugin contract and adjustable atomic recall follow-ons, registry/target/integration settings, canonical dynamic exports, manual server-mapped commitment Calendar export, AES-256-GCM token storage, append-only migrations `0034`–`0037`, and full application/browser/database/edge verification; Phase 8 remains unstarted pending explicit production-cutover authorization |
+| 3.0 | 2026-09-03 | Completed Phase 8 preparation without starting the phase: added the exact encrypted-export/cutover/smoke/fix-forward runbook, split the backend workflow into SHA-pinned migration and function stages, and added transactional preflight/backfill verification SQL; production remains untouched pending explicit authorization |

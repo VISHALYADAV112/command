@@ -142,6 +142,9 @@ and
 [`docs/adr/0002-lightweight-client-infrastructure.md`](docs/adr/0002-lightweight-client-infrastructure.md).
 The coordinated v3 release boundary is recorded in
 [`docs/adr/0003-coordinate-v3-production-cutover.md`](docs/adr/0003-coordinate-v3-production-cutover.md).
+Its operator procedure, including the encrypted export, staged backend release,
+transactional backfill verification, smoke tests, and fix-forward boundary, is
+[`docs/phase8-cutover.md`](docs/phase8-cutover.md).
 
 ## Verification
 
@@ -149,9 +152,9 @@ CI runs typecheck/build, Vitest, mobile Playwright flows, and pgTAP RLS tests.
 After applying a migration locally, run `npm run db:types` to refresh the
 generated Supabase contract; app-specific row aliases live separately in
 `src/lib/db.rows.ts`, so regeneration is safe.
-Backend deployment is an explicit manual GitHub Action (`Deploy Supabase`). It
-applies migrations, enables the Supabase OAuth server, and deploys both edge
-functions. Configure its
+Backend deployment is an explicit manual GitHub Action (`Deploy Supabase`) with
+separate `migrations` and `functions` stages around the private backfill and
+verification gate. Configure its
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID`
 secrets. Configure the edge secrets `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY`, and `APP_ORIGIN` in Supabase before
