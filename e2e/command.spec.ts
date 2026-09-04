@@ -46,13 +46,13 @@ test('captures, schedules, finds, and completes a registry-driven record', async
 
 test('browses a canonical item and supports archive and restore', async ({ page }) => {
   await page.getByRole('button', { name: 'Browse', exact: true }).click()
-  await page.getByLabel('Browse type').selectOption('project')
+  await page.getByLabel('Record class').selectOption('project')
   await page.getByRole('button', { name: /RAG evaluation workbench/ }).click()
   await expect(page.getByRole('heading', { name: 'RAG evaluation workbench' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible()
-  await page.getByRole('button', { name: 'Archive' }).click()
+  await expect(page.getByRole('heading', { name: 'Event ledger' })).toBeVisible()
+  await page.getByRole('button', { name: 'Archive record' }).click()
   await expect(page.getByText('Archived records are read-only until restored.')).toBeVisible()
-  await page.getByRole('button', { name: 'Restore' }).click()
+  await page.getByRole('button', { name: 'Restore record' }).click()
   await expect(page.getByText('Archived records are read-only until restored.')).toHaveCount(0)
 })
 
@@ -67,7 +67,7 @@ test('publishes valid installable PWA metadata', async ({ request }) => {
   const response = await request.get('/manifest.webmanifest')
   expect(response.ok()).toBeTruthy()
   const manifest = await response.json()
-  expect(manifest).toMatchObject({ name: 'Command', start_url: './', scope: './', display: 'standalone' })
+  expect(manifest).toMatchObject({ name: 'The Command Gazette', short_name: 'Gazette', start_url: './', scope: './', display: 'standalone' })
   expect(manifest.icons).toHaveLength(2)
 })
 
@@ -88,9 +88,22 @@ test('recomposes Calendar from a desktop month grid to a phone agenda', async ({
 test('keeps the Today priority, weekly outcomes, and primary action visible at 380px', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 844 })
   await expect(page.locator('.urgent-lead, .floor-field').first()).toBeInViewport()
-  await expect(page.getByRole('group', { name: 'Weekly outcome progress' })).toBeInViewport()
+  await expect(page.getByText('Weekly application cadence')).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Capture', exact: true })).toBeInViewport()
   await expectNoHorizontalOverflow(page)
+})
+
+test('offers the exact Gazette v12 sample edition as an isolated local preview', async ({ page }) => {
+  await page.waitForFunction(() => localStorage.getItem('command.prototype.v3') !== null)
+  const storedDemo = await page.evaluate(() => localStorage.getItem('command.prototype.v3'))
+  await page.goto('/?preview=gazette-v12#/')
+  await expect(page.getByRole('heading', { name: '1 day overdue' })).toBeVisible()
+  await expect(page.getByText('Sarah Chen catch-up & systems engineering wire', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Stripe system design: distributed rate limiter drill', { exact: true })).toBeVisible()
+  const systemsFloor = page.getByRole('region', { name: "The day's floors" }).locator('.floor').filter({ hasText: 'Node.js engineering floor' })
+  await expect(systemsFloor.locator('strong')).toContainText('105')
+  await expect(page.getByRole('button', { name: 'Agent inbox · 1' })).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('command.prototype.v3'))).toBe(storedDemo)
 })
 
 test('supports common phone, tablet, and desktop Gazette widths', async ({ page }) => {
@@ -106,7 +119,7 @@ test('uses the full Gazette navigation rail on desktop', async ({ page }) => {
   const nav = page.locator('.view-nav')
   await expect(nav.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page')
   await nav.getByRole('button', { name: 'Week review', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'This week' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'The week in review' })).toBeVisible()
   await expect(nav.getByRole('button', { name: 'Week review', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.gazette-nav-row')).toHaveCSS('position', 'relative')
 })
@@ -125,18 +138,20 @@ test('shows the bounded Week review and keeps future days pending at 380px', asy
   await page.setViewportSize({ width: 380, height: 844 })
   await page.goto('/#/week')
 
-  await expect(page.getByRole('heading', { name: 'This week' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Practice totals' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Outcome movement' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Commitment outcomes' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Agent proposals' })).toBeVisible()
-  await expect(page.getByText('Pending')).toHaveCount(4)
+  await expect(page.getByRole('heading', { name: 'The week in review' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Day by day' })).toBeVisible()
+  for (const tile of ['Systems minutes', 'Algorithm minutes', 'Theory minutes', 'Applications filed', 'People contacted', 'Commitments discharged', 'Agent drafts filed']) {
+    await expect(page.getByText(tile, { exact: true })).toBeVisible()
+  }
+  // Every day after today stays unfiled in the ledger's State column.
+  expect(await page.locator('.week-table-state.is-pending').count()).toBeGreaterThanOrEqual(4)
   await expectNoHorizontalOverflow(page)
 
   await page.getByRole('button', { name: 'Today', exact: true }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
   const settingsPage = page.getByRole('main')
   await expect(settingsPage.getByRole('heading', { name: 'Preferences' })).toBeVisible()
+  await settingsPage.getByRole('tab', { name: 'integrations' }).click()
   await settingsPage.getByRole('button', { name: 'Open weekly review' }).click()
   await expect(page).toHaveURL(/#\/week$/)
 })
@@ -149,17 +164,18 @@ test('shows all five Run markers without inventing missing trends at 380px', asy
 
   await expect(page.getByRole('heading', { name: 'The run' })).toBeVisible()
   for (const marker of [
-    'Public portfolio projects', 'DSA patterns mastered', 'Mock interviews completed',
-    'Application to first round', 'Referral conversations held',
+    'Public portfolio projects shipped', 'DSA patterns mastered', 'Mock technical interviews held',
+    'Screen-to-technical conversion', 'Referral conversations completed',
   ]) await expect(page.getByRole('heading', { name: marker })).toBeVisible()
   await expect(page.getByText(/Trend withheld/)).toHaveCount(1)
-  await expect(page.getByText(/oldest to latest completed month|Flat across the three completed months/)).toHaveCount(4)
+  await expect(page.locator('.run-trend')).toHaveCount(4)
   await expectNoHorizontalOverflow(page)
 
   await page.getByRole('button', { name: 'Today', exact: true }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
   const settingsPage = page.getByRole('main')
   await expect(settingsPage.getByRole('heading', { name: 'Preferences' })).toBeVisible()
+  await settingsPage.getByRole('tab', { name: 'integrations' }).click()
   await settingsPage.getByRole('button', { name: 'Open monthly Run' }).click()
   await expect(page).toHaveURL(/#\/run$/)
 })
@@ -211,7 +227,7 @@ test('keeps a large dynamic type registry usable at 380px', async ({ page }) => 
   await page.setViewportSize({ width: 380, height: 844 })
   await page.reload()
   await page.goto('/#/t/application')
-  await expect(page.getByLabel('Browse type').locator('option')).toHaveCount(25)
+  await expect(page.getByLabel('Record class').locator('option')).toHaveCount(25)
   await expectNoHorizontalOverflow(page)
 })
 
@@ -221,6 +237,7 @@ test('creates a data-only type that immediately works in Capture and Browse', as
   const settings = page.getByRole('main')
   await expect(settings.getByRole('heading', { name: 'Preferences' })).toBeVisible()
   await expect(settings.getByText(/historical status are always derived/i)).toBeVisible()
+  await settings.getByRole('tab', { name: 'types' }).click()
   await settings.getByRole('button', { name: 'Create data type' }).click()
   const editor = page.getByRole('dialog', { name: 'Create data type' })
   await editor.getByLabel('Type key').fill('book')
@@ -235,7 +252,7 @@ test('creates a data-only type that immediately works in Capture and Browse', as
   await capture.getByLabel('Title').fill('Designing Data-Intensive Applications')
   await capture.getByRole('button', { name: 'Capture record' }).click()
   await page.getByRole('button', { name: 'Browse', exact: true }).click()
-  await page.getByLabel('Browse type').selectOption('book')
+  await page.getByLabel('Record class').selectOption('book')
   await expect(page.getByText('Designing Data-Intensive Applications')).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
@@ -244,15 +261,19 @@ test('records recall and schedules the adjustable plugin follow-on through Outco
   await page.clock.setFixedTime(new Date('2026-09-02T06:00:00.000Z'))
   await page.setViewportSize({ width: 380, height: 844 })
   await page.goto('/#/i/00000000-0000-4000-8000-000000000501')
-  await page.getByRole('button', { name: 'Outcome' }).click()
+  await page.getByRole('button', { name: 'Record', exact: true }).click()
   const outcome = page.getByRole('dialog', { name: 'Record outcome' })
   await outcome.getByLabel('What happened?').fill('Needed another pass.')
   await outcome.getByLabel('How did recall feel?').selectOption('blank')
   await expect(outcome.getByLabel(/Next review/)).toHaveValue('2026-09-03')
   await outcome.getByLabel(/Next review/).fill('2026-09-04')
   await outcome.getByRole('button', { name: 'Save outcome' }).click()
-  await expect(page.getByText('2026-09-04 · open')).toBeVisible()
-  await expect(page.getByText(/Last reviewed on/).locator('xpath=following-sibling::dd')).toHaveText('2026-09-02')
+  // The rebuilt record page discharges the reviewed commitment and files the follow-on
+  // beneath it; the ledger states due dates relatively, so assert the structure.
+  await expect(page.locator('.item-commitment-when.is-closed')).toHaveText(/discharged/i)
+  await expect(page.getByText('Needed another pass.')).toBeVisible()
+  await expect(page.locator('.item-commitment').filter({ has: page.getByRole('button', { name: 'Record', exact: true }) })).toHaveCount(1)
+  await expect(page.locator('.item-field', { hasText: 'Last reviewed on' }).locator('.item-field-value')).toHaveText('2026-09-02')
   await expectNoHorizontalOverflow(page)
 })
 
@@ -277,7 +298,7 @@ test('keeps the Agent inbox review gate usable at 380px', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 844 })
   await page.reload()
   await expect(page.getByRole('button', { name: 'Agent inbox · 1' })).toBeInViewport()
-  await expect(page.getByRole('group', { name: 'Weekly outcome progress' })).toBeInViewport()
+  await expect(page.getByText('Weekly application cadence')).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Capture', exact: true })).toBeInViewport()
   await page.getByRole('button', { name: 'Agent inbox · 1' }).click()
   await expect(page.getByRole('dialog', { name: 'Agent inbox' })).toBeVisible()

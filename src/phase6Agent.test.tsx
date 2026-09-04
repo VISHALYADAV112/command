@@ -69,8 +69,10 @@ describe('Phase 6 agent review', () => {
       eventType: 'entity.created', payload: {}, source: 'mcp', clientId: 'phase6-client',
       idempotencyKey: 'proposal-event-001', occurredAt: now.toISOString(), createdAt: now.toISOString(),
     })
-    render(<ItemView data={data} entityId={entity.id} onEdit={vi.fn()} onSchedule={vi.fn()} onOutcome={vi.fn()} onArchive={vi.fn()} onRestore={vi.fn()} />)
-    expect(screen.getByText('mcp · phase6-client')).toBeInTheDocument()
+    render(<ItemView data={data} entityId={entity.id} today={now} onEdit={vi.fn()} onSchedule={vi.fn()} onOutcome={vi.fn()} onArchive={vi.fn()} onRestore={vi.fn()} />)
+    // The event ledger prints the writing surface beside the client that wrote it.
+    expect(screen.getAllByText('mcp')[0]).toBeInTheDocument()
+    expect(screen.getByText(/phase6-client/)).toBeInTheDocument()
   })
 })
 

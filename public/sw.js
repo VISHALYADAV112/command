@@ -1,10 +1,10 @@
-const CACHE_NAME = 'command-shell-v2'
+const CACHE_NAME = 'command-gazette-shell-v3'
 const SHELL = [
   './index.html',
   './manifest.webmanifest',
-  './assets/command-mark.svg',
-  './assets/command-icon-192.svg',
-  './assets/command-icon-512.svg',
+  './assets/gazette-mark.svg',
+  './assets/gazette-icon-192.svg',
+  './assets/gazette-icon-512.svg',
 ]
 
 self.addEventListener('install', (event) => {

@@ -46,12 +46,12 @@ describe('v3 core workflows', () => {
   it('browses, opens, archives, and restores canonical items', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }))
-    fireEvent.change(screen.getByLabelText('Browse type'), { target: { value: 'project' } })
+    fireEvent.change(screen.getByLabelText('Record class'), { target: { value: 'project' } })
     fireEvent.click(screen.getByRole('button', { name: /RAG evaluation workbench/ }))
     expect(screen.getByRole('heading', { name: 'RAG evaluation workbench' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Archive record' }))
     expect(screen.getByText('Archived records are read-only until restored.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore record' }))
     expect(screen.queryByText('Archived records are read-only until restored.')).not.toBeInTheDocument()
   })
 

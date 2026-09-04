@@ -59,7 +59,7 @@ export function OAuthConsentScreen({ authorizationId }: { authorizationId: strin
   }
 
   return <div className="auth-screen"><div className="auth-card oauth-consent-card">
-    <img className="auth-mark" src="./assets/command-mark.svg" alt="" />
+    <img className="auth-mark" src="./assets/gazette-mark.svg" alt="" />
     <p className="eyebrow">Command · MCP</p>
     <h1>{details ? `Connect ${details.client.name || 'AI client'}?` : 'Checking request…'}</h1>
     {details && <>

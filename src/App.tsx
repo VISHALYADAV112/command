@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
-import { AppHeader } from './AppHeader'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { AppHeader, gazetteIssueNumber } from './AppHeader'
 import { AuthScreen } from './AuthScreen'
 import { OAuthConsentScreen } from './OAuthConsentScreen'
 import { SettingsSheet } from './SettingsSheet'
 import { dateKey, emptyLog } from './domain'
 import { exportData, exportTypeCsv } from './lib/api'
-import { useHashRoute, ViewNav } from './routes'
+import { sealGlyph, useHashRoute, ViewNav } from './routes'
 import type { Commitment, DailyLog, Entity } from './types'
 import { useCommandData, type SyncState } from './useCommandData'
 import { useIndiaToday } from './useIndiaToday'
@@ -22,9 +22,11 @@ import { RunView } from './views/RunView'
 import { CalendarView } from './views/CalendarView'
 import { commitmentEventPayload, createCalendarEvent } from './lib/calendar'
 import { dueItems } from './v3Selectors'
+import { createGazettePreviewRun, createGazettePreviewWeek, isGazettePreview } from './gazettePreview'
 
 export function App() {
   const today = useIndiaToday()
+  const gazettePreview = isGazettePreview()
   const command = useCommandData()
   const [route, navigate] = useHashRoute()
   const [logOpen, setLogOpen] = useState(false)
@@ -102,24 +104,24 @@ export function App() {
   const pendingAgents = pendingProposalCount(data)
 
   return <>
-    <div className="app-shell" id="top">
-      <AppHeader today={today} live={command.mode === 'live'} theme={command.settings.theme} data={data} settings={command.settings} onOpenSettings={() => navigate({ kind: 'settings' })} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
+    <div className="app-shell" id="top" style={{ '--seal-glyph': `'${sealGlyph(route)}'` } as CSSProperties}>
+      <AppHeader today={today} live={command.mode === 'live'} preview={gazettePreview} theme={command.settings.theme} data={data} settings={command.settings} onToggleTheme={() => command.saveSettings({ ...command.settings, theme: command.settings.theme === 'night' ? 'day' : 'night' })} />
       <ViewNav route={route} navigate={navigate} onCapture={() => openCapture()} onLog={() => setLogOpen(true)} onAgent={() => setAgentInboxOpen(true)} pendingAgents={pendingAgents} dueBadge={urgentCount} />
-      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} onOpenAgentInbox={() => setAgentInboxOpen(true)} onOpenDue={() => navigate({ kind: 'due', window: 'all', typeKey: null })} onOpenWeek={() => navigate({ kind: 'week' })} />}
+      {route.kind === 'today' && <TodayView data={data} settings={command.settings} today={today} preview={gazettePreview} onLog={() => setLogOpen(true)} onCapture={() => openCapture()} onOutcome={setOutcome} onOpenItem={openItem} onOpenAgentInbox={() => setAgentInboxOpen(true)} onOpenDue={() => navigate({ kind: 'due', window: 'all', typeKey: null })} onOpenWeek={() => navigate({ kind: 'week' })} />}
       {route.kind === 'due' && <DueView data={data} today={today} window={route.window} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadDuePage : undefined} onChange={(window, typeKey) => navigate({ kind: 'due', window, typeKey })} onOutcome={setOutcome} onOpenItem={openItem} onCapture={openCapture} />}
       {route.kind === 'calendar' && <CalendarView data={data} today={today} onOpenItem={openItem} onOutcome={setOutcome} />}
       {route.kind === 'browse' && <BrowseView data={data} typeKey={route.typeKey} loadPage={command.mode === 'live' ? command.loadBrowsePage : undefined} onType={(typeKey) => navigate({ kind: 'browse', typeKey })} onOpenItem={openItem} onCapture={openCapture} onOpenSettings={() => navigate({ kind: 'settings' })} />}
-      {route.kind === 'item' && <ItemView data={data} entityId={route.id} onEdit={setEditingEntity} onSchedule={(entity, commitment = null) => setScheduling({ entity, commitment })} onOutcome={setOutcome} onArchive={archive} onRestore={restore} onCalendar={command.mode === 'live' && command.session ? async (commitment, entity, type) => {
+      {route.kind === 'item' && <ItemView data={data} entityId={route.id} today={today} onEdit={setEditingEntity} onSchedule={(entity, commitment = null) => setScheduling({ entity, commitment })} onOutcome={setOutcome} onArchive={archive} onRestore={restore} onCalendar={command.mode === 'live' && command.session ? async (commitment, entity, type) => {
         const payload = commitmentEventPayload(commitment, entity, type)
         if (!payload || !command.session) throw new Error('This commitment is not approved for Calendar export.')
         await createCalendarEvent(command.session, payload)
         command.refreshData()
         showNotice('Commitment added to Calendar')
       } : undefined} />}
-      {route.kind === 'week' && <WeekView data={data} settings={command.settings} today={today} loadSummary={command.mode === 'live' ? command.loadWeek : undefined} />}
-      {route.kind === 'run' && <RunView data={data} today={today} loadSummary={command.mode === 'live' ? command.loadRun : undefined} />}
+      {route.kind === 'week' && <WeekView data={data} settings={command.settings} today={today} loadSummary={gazettePreview ? async () => createGazettePreviewWeek(today) : command.mode === 'live' ? command.loadWeek : undefined} />}
+      {route.kind === 'run' && <RunView data={data} today={today} loadSummary={gazettePreview ? async () => createGazettePreviewRun(today) : command.mode === 'live' ? command.loadRun : undefined} />}
       {route.kind === 'settings' && <SettingsSheet inline settings={command.settings} entityTypes={data.entityTypes} session={command.session} mode={command.mode} onSaveSettings={(settings) => { const saved = command.saveSettings(settings); if (saved) showNotice('Targets saved'); return saved }} onSaveEntityType={(type) => { const saved = command.saveEntityType(type); if (saved) showNotice('Type saved'); return saved }} onSignOut={command.signOut} onClose={() => navigate({ kind: 'today' })} onOpenWeek={() => navigate({ kind: 'week' })} onOpenRun={() => navigate({ kind: 'run' })} onOpenCalendar={() => navigate({ kind: 'calendar' })} onExport={handleExport} />}
-      <footer className="gazette-footer"><div lang="sa-Brah">𑀓 𑀫 𑀤 𑀯 𑀢 𑀭 𑀲</div><section><button className="log-button" type="button" onClick={() => setLogOpen(true)}>File evening practice log</button><span>Keys: C capture · L log · Esc close</span></section></footer>
+      <footer className="gazette-footer"><div lang="sa-Brah">𑀓 𑀫 𑀤 𑀯 𑀢 𑀭 𑀲</div><section><button className="log-button" type="button" onClick={() => setLogOpen(true)}>File evening practice log</button><span>Keys: C capture · L log · Esc close · No. {gazetteIssueNumber(today)}</span></section></footer>
     </div>
 
     {logOpen && <DailyLogSheet log={todayLog} settings={command.settings} onSave={(log: DailyLog) => { const saved = command.saveLog(log); if (saved) showNotice('Today saved'); return saved }} onClose={() => setLogOpen(false)} />}

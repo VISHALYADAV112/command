@@ -13,10 +13,11 @@ import {
 import { useRemoteSync } from './useRemoteSync'
 import { createCommandMutations } from './commandMutations'
 import { createV3Mutations } from './v3Mutations'
+import { createGazettePreviewData, gazettePreviewSettings, isGazettePreview } from './gazettePreview'
 
 export type SyncState = 'idle' | 'saving' | 'saved' | 'error' | 'offline' | 'stale'
 
-export type CommandMode = 'loading' | 'configuring' | 'demo' | 'live'
+export type CommandMode = 'loading' | 'configuring' | 'demo' | 'preview' | 'live'
 
 export interface UseCommandDataResult {
   data: CommandData | null
@@ -66,6 +67,14 @@ export function useCommandData(): UseCommandDataResult {
   const sync = useRemoteSync({ mode, dataRef, reload: boot })
 
   function boot(): void {
+    if (isGazettePreview()) {
+      const preview = createGazettePreviewData()
+      setDataState(preview)
+      dataRef.current = preview
+      setSettings(gazettePreviewSettings)
+      setMode('preview')
+      return
+    }
     const client = getSupabase()
     if (!client || !isSupabaseConfigured) {
       const demo = readDemoData()
@@ -186,7 +195,7 @@ export function useCommandData(): UseCommandDataResult {
   function signOutFromCommand(): void {
     if (mode === 'demo') {
       clearDemoCache()
-    } else {
+    } else if (mode === 'live') {
       const client = getSupabase()
       if (client) {
         void doSignOut(client).then(() => {

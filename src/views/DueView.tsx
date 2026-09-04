@@ -8,8 +8,8 @@ import { dueItems, type DueItem } from '../v3Selectors'
 import { CommitmentQueue } from './TodayView'
 
 const windows: Array<{ key: DueWindow; label: string }> = [
-  { key: 'overdue', label: 'Overdue' }, { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This week' }, { key: 'all', label: 'All' },
+  { key: 'all', label: 'All' }, { key: 'overdue', label: 'Overdue' },
+  { key: 'today', label: 'Today' }, { key: 'week', label: 'Week' },
 ]
 type DuePageLoader = (day: string, window: DueWindow, typeKey: string | null, offset: number) => Promise<RemotePage<RemoteDueItem>>
 
@@ -35,7 +35,6 @@ export function DueView({ data, today, window, typeKey, loadPage, onChange, onOu
   const visibleItems = remoteItems ?? localItems.slice(currentPage * V3_PAGE_SIZE, (currentPage + 1) * V3_PAGE_SIZE)
   const hasNext = remoteItems ? Boolean(remote?.page.hasMore) : currentPage + 1 < pageCount
   const activeType = data.entityTypes.find((type) => type.typeKey === typeKey)
-  const label = window === 'all' ? 'All open commitments' : windows.find((item) => item.key === window)?.label ?? 'Due'
   useEffect(() => setPage(0), [window, typeKey])
   useEffect(() => {
     if (!loadPage) return
@@ -46,13 +45,18 @@ export function DueView({ data, today, window, typeKey, loadPage, onChange, onOu
       .catch(() => { if (active) setLoadError(true) })
     return () => { active = false }
   }, [loadPage, page, remoteKey, today, typeKey, window])
-  return <main><ViewShell eyebrow="Unified queue" title={label} aside={remoteItems ? `${visibleItems.length}${hasNext ? '+' : ''} on page` : `${localItems.length} open`}>
-    <div className="filter-bar" aria-label="Due filters">
-      <div className="filter-tabs" role="group" aria-label="Due window">{windows.map((item) => <button className={window === item.key ? 'is-selected' : ''} type="button" key={item.key} onClick={() => onChange(item.key, typeKey)}>{item.label}</button>)}</div>
-      <label>Type<select aria-label="Type filter" value={typeKey ?? ''} onChange={(event) => onChange(window, event.target.value || null)}><option value="">All types</option>{data.entityTypes.filter((type) => type.isActive).map((type) => <option key={type.id} value={type.typeKey}>{type.pluralName}</option>)}</select></label>
-    </div>
+  const overdueItems = visibleItems.filter((item) => item.dueStatus === 'overdue')
+  const scheduledItems = visibleItems.filter((item) => item.dueStatus !== 'overdue')
+  const filters = <div className="ledger-filters" aria-label="Due filters">
+    <div className="rule-tabs" role="group" aria-label="Due window">{windows.map((item) => <button className={window === item.key ? 'is-selected' : ''} type="button" key={item.key} onClick={() => onChange(item.key, typeKey)}>{item.label}</button>)}</div>
+    <select className="rule-select" aria-label="Type filter" value={typeKey ?? ''} onChange={(event) => onChange(window, event.target.value || null)}><option value="">All classes</option>{data.entityTypes.filter((type) => type.isActive).map((type) => <option key={type.id} value={type.typeKey}>{type.pluralName}</option>)}</select>
+  </div>
+  return <main><ViewShell eyebrow="Section 02 · Commitment ledger" title="Due commitments" aside={filters}>
     {loadError && <p className="view-hint" role="status">Could not refresh this page. Showing the latest cached queue.</p>}
-    {visibleItems.length === 0 ? <EmptyState message={typeKey ? `No ${activeType?.pluralName.toLocaleLowerCase() ?? 'records'} match this filter.` : 'Nothing is due in this window.'} /> : <CommitmentQueue items={visibleItems} today={today} onOutcome={onOutcome} onOpenItem={onOpenItem} />}
+    {visibleItems.length === 0 ? <EmptyState message={typeKey ? `No ${activeType?.pluralName.toLocaleLowerCase() ?? 'records'} match this filter.` : 'Nothing is due in this window.'} /> : <>
+      {overdueItems.length > 0 && <section className="due-group is-urgent"><h3>Action required <span>{overdueItems.length} overdue</span></h3><CommitmentQueue items={overdueItems} today={today} trailing="due" onOutcome={onOutcome} onOpenItem={onOpenItem} /></section>}
+      {scheduledItems.length > 0 && <section className="due-group"><h3>Scheduled ahead <span>{scheduledItems.length} filed</span></h3><CommitmentQueue items={scheduledItems} today={today} trailing="due" onOutcome={onOutcome} onOpenItem={onOpenItem} /></section>}
+    </>}
     {visibleItems.length === 0 && <div className="form-actions"><button className="secondary-button" type="button" onClick={() => onCapture(typeKey)}>Capture {activeType?.singularName ?? 'record'}</button></div>}
     {(page > 0 || hasNext) && <nav className="pagination" aria-label="Due pages"><button className="secondary-button" type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page + 1}{remoteItems ? '' : ` of ${pageCount}`}</span><button className="secondary-button" type="button" disabled={!hasNext} onClick={() => setPage(page + 1)}>Next</button></nav>}
   </ViewShell></main>

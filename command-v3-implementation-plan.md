@@ -1,7 +1,7 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 3.1
+**Plan version:** 3.3
 **Created:** 2026-08-30
 **Last updated:** 2026-09-03
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
@@ -63,10 +63,10 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 7. Add review, readiness, export, and integrations | **Complete** | Week, Run, settings, export, and Calendar rules work |
 | 8. Cut over, harden, and retire legacy paths | **In progress** | Production smoke tests and final completion gate pass |
 
-**Active phase:** Phase 8. The backend cutover passed, but the first v3 frontend candidate failed visual acceptance before any v3 canonical user write. The public alias was restored to the exact Phase 4 deployment while the Gazette UI is rebuilt locally.
-**Current blocker:** The replacement frontend must pass local visual/responsive verification and owner acceptance before any new push, Vercel promotion/alias move, authenticated production write, or completion smoke test. A new external release action requires explicit authorization.
-**Repository state:** Local `main`, `command-v3`, `origin/main`, and `origin/command-v3` started this correction at Phase 8 preparation commit `ad56848`. The Gazette v12 correction is local on `command-v3` and has not been pushed. The public alias `https://command-beta-flax.vercel.app/` points to Vercel deployment `dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from Phase 4 commit `e2d5d15`. Production migrations `0013`–`0037` and the verified idempotent backfill have run; legacy tables remain untouched, both v3 Edge Functions are deployed with request-level authentication, and no first v3 canonical user write has occurred. The encrypted verified pre-cutover export and private cutover record remain outside the repository.
-**Next slice:** Finish and commit the local Gazette correction without pushing. After owner visual acceptance and explicit release authorization, create/verify the Vercel candidate from that immutable commit, move the public alias only after its gates pass, then resume at authenticated read-only smoke checks before deliberately recording the first v3 write.
+**Active phase:** Phase 8. The backend cutover passed, but the first two v3 frontend candidates failed visual acceptance before any v3 canonical user write. The public alias remains restored to the exact Phase 4 deployment. A third local correction re-derived the desktop edition from the extracted v12 template rather than by eye: it repairs the Gazette palette (the legacy `:root[data-theme="day"]` block was silently overriding `--muted`, `--faint`, `--surface`, and `--line`), corrects the Brahmi section glyphs, and rebuilds Due, Calendar, Week, Preferences, the Item record, and the overlay chrome on the reference's own grids and typography. Every route was compared against the reference by computed style and by screenshot before review.
+**Current blocker:** The locally verified replacement frontend still requires owner acceptance before its immutable commit and any new push, Vercel promotion/alias move, authenticated production write, or completion smoke test. A new external release action requires explicit authorization.
+**Repository state:** Local `main`, `command-v3`, `origin/main`, and `origin/command-v3` started this correction at Phase 8 preparation commit `ad56848`. The first local Gazette correction was committed as `d8f23fe`; the second correction is uncommitted on `command-v3` and has not been pushed. The public alias `https://command-beta-flax.vercel.app/` points to Vercel deployment `dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from Phase 4 commit `e2d5d15`. Production migrations `0013`–`0037` and the verified idempotent backfill have run; legacy tables remain untouched, both v3 Edge Functions are deployed with request-level authentication, and no first v3 canonical user write has occurred. The encrypted verified pre-cutover export and private cutover record remain outside the repository.
+**Next slice:** Obtain owner review of the third isolated local v12 sample edition, address any acceptance notes, and commit the verified correction without pushing. After owner acceptance and explicit release authorization, create/verify the Vercel candidate from that immutable commit, move the public alias only after its gates pass, then resume at authenticated read-only smoke checks before deliberately recording the first v3 write.
 
 ---
 
@@ -797,6 +797,8 @@ Visual-acceptance correction (2026-09-03):
 - Replaced the prior generic Phase 4 treatment with the v12 dateline, masthead, maxim, rules, vermilion exception lead, four-desk floor field, compact queue/table language, registry rows, Week/Run reviews, and full-page preferences.
 - Added the now-approved canonical `/#/calendar` surface: a month grid on desktop and a deliberately recomposed agenda on phones. It reads existing commitments only and does not alter the explicit Google Calendar export boundary.
 - Kept the five-action phone rail and rebuilt dense grids as bounded cards/lists. Verified zero horizontal overflow at 360px, 380px, 390px, 768px, and 1280px, with dialogs layered above the mobile rail.
+- After the first correction remained visually unsatisfactory, rebuilt the visual layer directly against the supplied v12 measurements and sample edition: exact masthead/rule hierarchy, stop-press strip, exception lead, four-desk floor field, commitment rows, execution strip, and section vocabulary. The v12 sample is available only through `?preview=gazette-v12`; it bypasses Supabase and preserves the existing demo cache byte-for-byte.
+- Replaced the earlier Command mark and PWA icon URLs with Gazette newspaper-tile assets and advanced the service-worker cache key so an old cached logo cannot mask the correction.
 
 ### Phase 5 — Build the core v3 product workflows
 
@@ -972,7 +974,7 @@ Gazette correction verification on 2026-09-03:
 - `npm test`: 22 files / 97 tests passed.
 - `npx tsc -b`: passed with no errors.
 - `npm run build`: passed with only the existing non-blocking chunk-size warning.
-- `npm run test:e2e`: 18/18 passed, including the new desktop-month/mobile-agenda Calendar contract and all existing capture, outcome, recall, type-registry, Agent inbox, route-width, and PWA flows.
+- `npm run test:e2e`: 19/19 passed, including isolated v12 preview/cache protection, the desktop-month/mobile-agenda Calendar contract, and all existing capture, outcome, recall, type-registry, Agent inbox, route-width, and PWA flows.
 - `git diff --check`: passed before final documentation and will be rerun at the commit gate.
 
 Preparation verification on 2026-09-03:
@@ -1207,3 +1209,5 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 2.9 | 2026-09-02 | Completed Phase 7 with the allow-listed behaviour-plugin contract and adjustable atomic recall follow-ons, registry/target/integration settings, canonical dynamic exports, manual server-mapped commitment Calendar export, AES-256-GCM token storage, append-only migrations `0034`–`0037`, and full application/browser/database/edge verification; Phase 8 remains unstarted pending explicit production-cutover authorization |
 | 3.0 | 2026-09-03 | Completed Phase 8 preparation without starting the phase: added the exact encrypted-export/cutover/smoke/fix-forward runbook, split the backend workflow into SHA-pinned migration and function stages, and added transactional preflight/backfill verification SQL; production remains untouched pending explicit authorization |
 | 3.1 | 2026-09-03 | Recorded the executed backend cutover and pre-write frontend rollback, marked Phase 8 in progress, amended D-01/D-06 for the exact v12 desktop contract and canonical Calendar route, and completed the local Gazette/responsive correction while the public alias remains on exact Phase 4 |
+| 3.2 | 2026-09-03 | Recorded the second local visual-acceptance correction after the first was rejected: aligned the desktop edition directly to the v12 sample, populated an isolated non-persistent sample-data preview, replaced the old PWA mark, retained the deliberate smartphone composition, and passed the 19-test browser suite while production remains pinned to exact Phase 4 |
+| 3.3 | 2026-09-03 | Recorded the third local visual-acceptance correction after a route-by-route comparison against the extracted v12 template: repaired the Gazette palette that the legacy day-theme block was overriding, corrected the nav/section Brahmi glyphs and the reference's ink-not-green "met" register, rebuilt Due filters, the Calendar month grid and agenda, the Week retrospective, Preferences (as reference tabs carrying the extra v3 settings), the Item record page, and the overlay chrome, restored the phone composition for the rebuilt surfaces, and passed 97 unit tests, typecheck, build, and the 19-test browser suite while production remains pinned to exact Phase 4 |

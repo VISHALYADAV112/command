@@ -10,6 +10,11 @@ import {
   disconnectCalendar, getCalendarStatus, startCalendarConnect, type CalendarStatus,
 } from './lib/calendar'
 
+const floorLabels: Record<string, string> = {
+  node: 'Node.js engineering floor', dsa: 'DSA & algorithmic drills', math: 'Math theory & computation',
+}
+const floorDesks: Record<string, string> = { node: 'Systems', dsa: 'Algorithms', math: 'Theory' }
+
 export function SettingsSheet({
   settings,
   entityTypes,
@@ -43,6 +48,7 @@ export function SettingsSheet({
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
   const [calendarError, setCalendarError] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<'disconnect' | 'reset' | null>(null)
+  const [tab, setTab] = useState<'targets' | 'types' | 'integrations'>('targets')
 
   useEffect(() => {
     setDraft(settings)
@@ -88,107 +94,84 @@ export function SettingsSheet({
     }))
   }
 
-  function hours(minutes: number): string {
-    const value = minutes / 60
-    return Number.isInteger(value) ? String(value) : value.toFixed(1)
-  }
+  const targetRows = [
+    ...dailyPractices.map(({ key, label }) => ({
+      key: `floor-${key}`, label: floorLabels[key], hint: `${floorDesks[key]} desk · daily minimum`,
+      value: draft.floors[key], step: 5, onChange: (value: number) => setField('floors', key, value),
+    })),
+    { key: 'applications', label: 'Weekly application budget', hint: 'Outreach · per week', value: draft.weeklyTargets.applications, step: 1, onChange: (value: number) => setWeeklyTarget('applications', value) },
+    { key: 'people', label: 'New people contacted', hint: 'Outreach · per week', value: draft.weeklyTargets.peopleContacted, step: 1, onChange: (value: number) => setWeeklyTarget('peopleContacted', value) },
+    ...dailyPractices.map(({ key, label }) => ({
+      key: `budget-${key}`, label: `${label} weekly budget`, hint: `${floorDesks[key]} desk · minutes per week`,
+      value: draft.budgets[key], step: 15, onChange: (value: number) => setField('budgets', key, value),
+    })),
+  ]
 
-  const budgetNote = dailyPractices.map(({ key, label }) => `${label} ${hours(draft.budgets[key])}h`).join(' · ')
+  const targets = <form className="prefs-form" onSubmit={(event) => { event.preventDefault(); save() }}>
+    {targetRows.map((row) => <div className="prefs-row" key={row.key}>
+      <div><div className="prefs-label">{row.label}</div><div className="prefs-hint">{row.hint}</div></div>
+      <input type="number" min="0" step={row.step} aria-label={row.label} value={row.value} onChange={(event) => row.onChange(Number(event.target.value))} />
+    </div>)}
+    <p className="prefs-note">Week and historical status are always derived using the targets currently saved here; changing a target reinterprets prior summaries without changing their underlying events.</p>
+    <button className="capture-button prefs-submit" type="submit">Save targets</button>
+  </form>
+
+  const types = <div className="prefs-panel">
+    <TypeRegistrySettings types={entityTypes} onSave={onSaveEntityType} />
+  </div>
+
+  const integrations = <div className="prefs-panel">
+    <div className="prefs-record">
+      <div className="prefs-record-head"><span>Google Calendar</span><em className={calendar?.connected ? 'is-good' : ''}>{mode === 'live' ? calendar ? calendar.connected ? 'Connected' : 'Disconnected' : 'Checking' : 'Sign in required'}</em></div>
+      {calendarError && <div className="prefs-record-line is-short">{calendarError}</div>}
+      <div className="prefs-record-line">{mode === 'live' ? calendar?.connected ? calendarStatusLabel(calendar) : 'Command exports interviews, hard deadlines, and important milestones only, and only on request.' : 'Available after signing in.'}</div>
+      {mode === 'live' && <div className="prefs-record-actions">{!calendar?.connected
+        ? <button className="secondary-button" type="button" onClick={connect}>Connect Calendar</button>
+        : <button className="secondary-button" type="button" onClick={() => setConfirmation('disconnect')}>Disconnect</button>}</div>}
+    </div>
+
+    <McpConnections session={mode === 'live' ? session : null} />
+
+    <div className="prefs-record">
+      <div className="prefs-record-head"><span>Export</span><em>{mode === 'live' ? 'Available' : 'Sign in required'}</em></div>
+      <div className="prefs-record-line">Dynamic JSON of every registered type, or one CSV per type.</div>
+      {mode === 'live' && <div className="prefs-record-actions">
+        <button className="secondary-button" type="button" onClick={() => onExport('json')}>Export JSON</button>
+        {entityTypes.map((type) => <button className="secondary-button" type="button" key={type.id} onClick={() => onExport('csv', type.typeKey)}>CSV · {type.pluralName}</button>)}
+      </div>}
+    </div>
+
+    <div className="prefs-record">
+      <div className="prefs-record-head"><span>Review</span><em>Sections 05 &amp; 06</em></div>
+      <div className="prefs-record-line">This week&rsquo;s execution and the longer monthly readiness signals.</div>
+      <div className="prefs-record-actions">
+        <button className="secondary-button" type="button" onClick={onOpenWeek}>Open weekly review</button>
+        <button className="secondary-button" type="button" onClick={onOpenRun}>Open monthly Run</button>
+        {onOpenCalendar && <button className="secondary-button" type="button" onClick={onOpenCalendar}>Open Calendar</button>}
+      </div>
+    </div>
+
+    <div className="prefs-record">
+      <div className="prefs-record-head"><span>Account</span><em>{mode === 'live' ? 'Signed in' : 'Local prototype'}</em></div>
+      <div className="prefs-record-line">{mode === 'live' ? session?.user?.email ?? '' : 'Edits stay in this browser.'}</div>
+      <div className="prefs-record-actions"><button className="secondary-button" type="button" onClick={() => mode === 'live' ? onSignOut() : setConfirmation('reset')}>{mode === 'live' ? 'Sign out' : 'Reset prototype data'}</button></div>
+    </div>
+  </div>
+
+  const tabs = <div className="prefs-tabs" role="tablist" aria-label="Preference sections">{(['targets', 'types', 'integrations'] as const).map((value) => (
+    <button className={tab === value ? 'is-selected' : ''} role="tab" aria-selected={tab === value} type="button" key={value} onClick={() => setTab(value)}>{value}</button>
+  ))}</div>
 
   const content = <div className="settings-content">
-        <div className="settings-group">
-          <h3>Edition</h3>
-          <p className="settings-hint">Choose the paper treatment that stays with this browser and account.</p>
-          <div className="edition-switch" role="group" aria-label="Colour edition">
-            {(['night', 'day'] as const).map((edition) => (
-              <button
-                className={draft.theme === edition ? 'is-selected' : ''}
-                type="button"
-                aria-pressed={draft.theme === edition}
-                key={edition}
-                onClick={() => setDraft((current) => ({ ...current, theme: edition }))}
-              >
-                {edition === 'night' ? 'Night edition' : 'Day edition'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h3>Review</h3>
-          <p className="settings-hint">Review this week’s execution or the longer monthly readiness signals.</p>
-          <div className="settings-actions">
-            <button className="secondary-button" type="button" onClick={onOpenWeek}>Open weekly review</button>
-            <button className="secondary-button" type="button" onClick={onOpenRun}>Open monthly Run</button>
-            {onOpenCalendar && <button className="secondary-button" type="button" onClick={onOpenCalendar}>Open Calendar</button>}
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h3>Three daily floors and weekly budgets</h3>
-          <p className="settings-hint">Floors are the minimums. Job-hunt progress is tracked as weekly application and outreach outcomes.</p>
-          <div className="settings-grid">
-            {dailyPractices.map(({ key, label }) => (
-              <div className="settings-row" key={key}>
-                <span className="time-label">{label}</span>
-                <label>Floor<input type="number" min="0" step="5" value={draft.floors[key]} onChange={(e) => setField('floors', key, Number(e.target.value))} /></label>
-                <label>Budget<input type="number" min="0" step="15" value={draft.budgets[key]} onChange={(e) => setField('budgets', key, Number(e.target.value))} /></label>
-              </div>
-            ))}
-          </div>
-          <div className="settings-grid weekly-target-grid">
-            <div className="settings-row"><span className="time-label">Job hunt</span><label>Applications<input type="number" min="0" step="1" value={draft.weeklyTargets.applications} onChange={(event) => setWeeklyTarget('applications', Number(event.target.value))} /></label><label>People contacted<input type="number" min="0" step="1" value={draft.weeklyTargets.peopleContacted} onChange={(event) => setWeeklyTarget('peopleContacted', Number(event.target.value))} /></label></div>
-          </div>
-          <p className="settings-hint">Week and historical status are always derived using the targets currently saved here; changing a target reinterprets prior summaries without changing their underlying events.</p>
-          <div className="form-actions"><button className="primary-button" type="button" onClick={save}><span>Save targets</span></button></div>
-        </div>
-
-        <TypeRegistrySettings types={entityTypes} onSave={onSaveEntityType} />
-
-        <McpConnections session={mode === 'live' ? session : null} />
-
-        <div className="settings-group">
-          <h3>Google Calendar</h3>
-          {mode === 'live' ? (
-            <>
-              {calendarError && <p className="settings-error">{calendarError}</p>}
-              <p className="settings-status">{calendar ? calendar.connected ? calendarStatusLabel(calendar) : 'Not connected' : 'Checking connection…'}</p>
-              <div className="settings-actions">
-                {!calendar?.connected ? (
-                  <button className="secondary-button" type="button" onClick={connect}>Connect Calendar</button>
-                ) : (
-                  <button className="secondary-button" type="button" onClick={() => setConfirmation('disconnect')}>Disconnect</button>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="settings-status">Available after signing in.</p>
-          )}
-        </div>
-
-        <div className="settings-group">
-          <h3>Export</h3>
-          {mode === 'live' ? <div className="settings-actions">
-              <button className="secondary-button" type="button" onClick={() => onExport('json')}>Export JSON</button>
-              {entityTypes.map((type) => (
-                <button className="secondary-button" type="button" key={type.id} onClick={() => onExport('csv', type.typeKey)}>CSV · {type.pluralName}</button>
-              ))}
-            </div> : <p className="settings-status">Exports are available after signing in.</p>}
-        </div>
-
-        <div className="settings-group">
-          <h3>Account</h3>
-          <p className="settings-status">{mode === 'live' ? `Signed in · ${session?.user?.email ?? ''}` : 'Local prototype — edits stay in this browser.'}</p>
-          <div className="settings-actions">
-            <button className="secondary-button" type="button" onClick={() => mode === 'live' ? onSignOut() : setConfirmation('reset')}>{mode === 'live' ? 'Sign out' : 'Reset prototype data'}</button>
-          </div>
-        </div>
+    {tab === 'targets' && targets}
+    {tab === 'types' && types}
+    {tab === 'integrations' && integrations}
   </div>
 
   return (
     <>
     {inline
-      ? <main><ViewShell eyebrow="Section 07 · Registry & preferences" title="Preferences" aside={budgetNote}><div className="settings-page">{content}</div></ViewShell></main>
+      ? <main><ViewShell eyebrow="Section 07 · Registry & preferences" title="Preferences" aside={tabs}><div className="settings-page">{content}</div></ViewShell></main>
       : <Sheet title="Targets & data" eyebrow="Settings" onClose={onClose}>{content}</Sheet>}
     {confirmation && <ConfirmSheet
       title={confirmation === 'disconnect' ? 'Disconnect Google Calendar?' : 'Reset prototype data?'}

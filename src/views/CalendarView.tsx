@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { dateKey } from '../domain'
 import type { CommandData, Commitment } from '../types'
 import { EmptyState } from '../ui'
+import { kindLabel } from './TodayView'
 
 export function CalendarView({ data, today, onOpenItem, onOutcome }: {
   data: CommandData
@@ -42,24 +43,24 @@ export function CalendarView({ data, today, onOpenItem, onOutcome }: {
 
   return <main className="calendar-view">
     <div className="gazette-page-heading">
-      <div><p>Section 03 · Dated commitments</p><h2>{monthLabel(cursor)}</h2></div>
-      <div className="calendar-controls"><button type="button" onClick={() => moveMonth(-1)}>← Prev</button><button type="button" onClick={goToday}>Today</button><button type="button" onClick={() => moveMonth(1)}>Next →</button></div>
+      <div><p>Section 03 · Operational calendar</p><h2>{monthLabel(cursor)}</h2></div>
+      <div className="calendar-controls"><button type="button" onClick={() => moveMonth(-1)}>← Prev</button><button type="button" onClick={goToday}>Today</button><button type="button" onClick={() => moveMonth(1)}>Next →</button><span className="calendar-summary">{monthCount} commitments this month</span></div>
     </div>
 
-    <p className="calendar-summary">{monthCount} commitments this month · Command dates only</p>
     <div className="calendar-grid-frame">
       <div className="calendar-weekdays">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <span key={day}>{day}</span>)}</div>
       <div className="calendar-month-grid">{days.map((day) => {
         const entries = byDate.get(day) ?? []
         return <button className={`${day.startsWith(cursor) ? '' : 'is-outside'}${day === selected ? ' is-selected' : ''}${day === todayKey ? ' is-today' : ''}`} type="button" key={day} onClick={() => setSelected(day)} aria-label={`${longDate(day)}, ${entries.length} commitments`}>
-          <span>{Number(day.slice(-2))}</span>{entries.slice(0, 3).map((item) => <small className={item.state === 'open' && item.dueOn < todayKey ? 'is-overdue' : ''} key={item.id}>{item.action}</small>)}{entries.length > 3 && <small>+{entries.length - 3} more</small>}
+          <b><span>{Number(day.slice(-2))}</span><i>{entries.length || ''}</i></b>
+          {entries.slice(0, 3).map((item) => <small className={item.state === 'open' && item.dueOn < todayKey ? 'is-overdue' : ''} key={item.id}><em>{kindLabel(item.kind)}</em>{item.action}</small>)}
         </button>
       })}</div>
     </div>
 
     <section className="calendar-day-agenda">
-      <div className="gazette-section-heading"><h3>{longDate(selected)}</h3><p>{agenda.length ? `${agenda.length} filed` : 'Nothing filed'}</p></div>
-      {agenda.length === 0 ? <EmptyState message="No commitments stand against this date." /> : agenda.map((commitment) => <AgendaRow commitment={commitment} data={data} key={commitment.id} onOpenItem={onOpenItem} onOutcome={onOutcome} />)}
+      <div className="gazette-agenda-heading"><h3>{longDate(selected)}</h3><p>{agenda.length ? `${agenda.length} filed` : 'Nothing filed'}</p></div>
+      {agenda.length === 0 ? <p className="calendar-empty">Nothing filed for this date.</p> : agenda.map((commitment) => <AgendaRow commitment={commitment} data={data} key={commitment.id} onOpenItem={onOpenItem} onOutcome={onOutcome} />)}
     </section>
 
     <section className="calendar-mobile-agenda" aria-label={`${monthLabel(cursor)} agenda`}>
@@ -78,10 +79,10 @@ function AgendaRow({ commitment, data, onOpenItem, onOutcome }: {
   const type = entity ? data.entityTypes.find((item) => item.id === entity.entityTypeId) : null
   if (!entity) return null
   return <article className="calendar-agenda-row">
-    <span>{commitment.kind.replaceAll('-', ' ')}</span>
-    <button type="button" onClick={() => onOpenItem(entity.id)}><strong>{commitment.action}</strong><small>{entity.title} · {type?.singularName ?? 'Record'}</small></button>
-    <em>{commitment.state}</em>
-    {commitment.state === 'open' && <button className="secondary-button" type="button" onClick={() => onOutcome(commitment)}>Record</button>}
+    <span>{kindLabel(commitment.kind)}</span>
+    <button type="button" onClick={() => onOpenItem(entity.id)}><strong>{commitment.action}</strong></button>
+    <em>{type?.singularName ?? 'Record'}</em>
+    {commitment.state === 'open' ? <button className="secondary-button" type="button" onClick={() => onOutcome(commitment)}>Record</button> : <span className="agenda-state">{commitment.state}</span>}
   </article>
 }
 
@@ -97,7 +98,7 @@ function monthGrid(cursor: string): string[] {
   })
 }
 
-function sortCommitments(left: Commitment, right: Commitment): number { return left.state.localeCompare(right.state) || left.action.localeCompare(right.action) }
+function sortCommitments(left: Commitment, right: Commitment): number { return left.state.localeCompare(right.state) || left.id.localeCompare(right.id) }
 function monthLabel(cursor: string): string { return new Date(`${cursor}-01T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' }) }
 function longDate(day: string): string { return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) }
 function shortDate(day: string): string { return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }) }

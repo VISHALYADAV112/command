@@ -3,10 +3,13 @@ import type { ActivityEvent, CommandData, Commitment, Entity, EntityType } from 
 import { displayFieldValue, findEntity } from '../v3Selectors'
 import { EmptyState, ViewShell } from '../ui'
 import { canExportCommitment } from '../lib/calendar'
+import { dayDistance } from '../domain'
+import { kindLabel } from './TodayView'
 
-export function ItemView({ data, entityId, onEdit, onSchedule, onOutcome, onArchive, onRestore, onCalendar }: {
+export function ItemView({ data, entityId, today, onEdit, onSchedule, onOutcome, onArchive, onRestore, onCalendar }: {
   data: CommandData
   entityId: string
+  today: Date
   onEdit: (entity: Entity) => void
   onSchedule: (entity: Entity, commitment?: Commitment | null) => void
   onOutcome: (commitment: Commitment) => void
@@ -18,40 +21,59 @@ export function ItemView({ data, entityId, onEdit, onSchedule, onOutcome, onArch
   const type = entity ? data.entityTypes.find((item) => item.id === entity.entityTypeId) : undefined
   if (!entity || !type) return <main><ViewShell eyebrow="Item" title="Not found"><EmptyState message="This item is unavailable." /></ViewShell></main>
   const commitments = data.commitments.filter((item) => item.entityId === entity.id).sort((left, right) => left.dueOn.localeCompare(right.dueOn))
-  const open = commitments.filter((item) => item.state === 'open')
-  const closed = commitments.filter((item) => item.state !== 'open')
   const events = data.activityEvents.filter((item) => item.entityId === entity.id).sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
-  const creation = events.find((event) => event.eventType === 'entity.created' || event.eventType === 'entity.migrated')
+  const fields = type.fields.filter((field) => !field.deprecated || entity.fields[field.key] !== undefined)
+  const eyebrow = `${type.singularName} · ${shortRef(entity.id)} · Filed ${shortDate(entity.createdAt)}`
 
-  return <main><ViewShell eyebrow={type.singularName} title={entity.title} aside={entity.archivedAt ? 'Archived' : 'Active'}>
-    <div className="item-actions">{entity.archivedAt ? <button className="secondary-button" type="button" onClick={() => onRestore(entity)}>Restore</button> : <><button className="secondary-button" type="button" onClick={() => onEdit(entity)}>Edit</button>{type.allowedCommitmentKinds.length > 0 && <button className="secondary-button" type="button" onClick={() => onSchedule(entity)}>Schedule</button>}<button className="danger-button danger-quiet" type="button" onClick={() => onArchive(entity)}>Archive</button></>}</div>
+  return <main><section className="zone view-zone item-view" aria-labelledby="view-title">
+    <div className="item-masthead">
+      <p className="eyebrow">{eyebrow}</p>
+      <h2 id="view-title">{entity.title}</h2>
+      <div className="item-actions">
+        {entity.archivedAt
+          ? <button className="capture-button" type="button" onClick={() => onRestore(entity)}>Restore record</button>
+          : <>
+            {type.allowedCommitmentKinds.length > 0 && <button className="capture-button" type="button" onClick={() => onSchedule(entity)}>+ Commitment</button>}
+            <button className="secondary-button" type="button" onClick={() => onEdit(entity)}>Edit record</button>
+            <button className="secondary-button" type="button" onClick={() => onArchive(entity)}>Archive record</button>
+          </>}
+      </div>
+    </div>
     {entity.archivedAt && <p className="archived-note">Archived records are read-only until restored.</p>}
-    <section className="item-section item-reference"><h3>Record</h3><p>{type.singularName} · <code>{entity.id}</code> · created {new Date(entity.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium' })}{creation?.eventType === 'entity.migrated' ? ' · migrated' : ''}</p></section>
-    <section className="item-section"><h3>Fields</h3><dl className="field-list">{type.fields.map((field) => <div key={field.key}><dt>{field.label}{field.deprecated ? ' · deprecated' : ''}</dt><dd>{displayFieldValue(entity.fields[field.key])}</dd></div>)}</dl></section>
-    <CommitmentHistory title="Open commitments" items={open} empty="No open commitments." archived={Boolean(entity.archivedAt)} onSchedule={(commitment) => onSchedule(entity, commitment)} onOutcome={onOutcome} onCalendar={onCalendar ? (commitment) => onCalendar(commitment, entity, type) : undefined} />
-    <CommitmentHistory title="History" items={closed} empty="No closed commitments yet." archived onSchedule={() => undefined} onOutcome={() => undefined} />
-    <section className="item-section"><h3>Provenance</h3>{events.length === 0 ? <p className="view-hint">No recorded activity yet.</p> : <ol className="timeline">{events.map((event) => <EventRow key={event.id} event={event} />)}</ol>}</section>
-  </ViewShell></main>
+
+    <div className="item-fields">{fields.map((field) => <div className="item-field" key={field.key}>
+      <div className="item-field-label">{field.label}{field.deprecated ? ' · deprecated' : ''}</div>
+      <div className="item-field-value">{displayFieldValue(entity.fields[field.key])}</div>
+    </div>)}</div>
+
+    <section className="item-section">
+      <h3>Commitments against this record</h3>
+      {commitments.length === 0
+        ? <p className="item-empty">No commitments stand against this record.</p>
+        : <div className="item-commitments">{commitments.map((item) => <CommitmentRow
+          key={item.id} item={item} today={today} archived={Boolean(entity.archivedAt)}
+          kind={kindLabel(item.kind)}
+          onSchedule={() => onSchedule(entity, item)} onOutcome={() => onOutcome(item)}
+          onCalendar={onCalendar ? () => onCalendar(item, entity, type) : undefined} />)}</div>}
+    </section>
+
+    <section className="item-section">
+      <h3>Event ledger</h3>
+      {events.length === 0
+        ? <p className="item-empty">No recorded activity yet.</p>
+        : <div className="item-events">{events.map((event) => <EventRow key={event.id} event={event} />)}</div>}
+    </section>
+  </section></main>
 }
 
-function CommitmentHistory({ title, items, empty, archived, onSchedule, onOutcome, onCalendar }: {
-  title: string
-  items: Commitment[]
-  empty: string
-  archived: boolean
-  onSchedule: (commitment: Commitment) => void
-  onOutcome: (commitment: Commitment) => void
-  onCalendar?: (commitment: Commitment) => Promise<void>
-}) {
-  return <section className="item-section"><h3>{title}</h3>{items.length === 0 ? <p className="view-hint">{empty}</p> : <div className="item-commitments">{items.map((item) => <CommitmentRow key={item.id} item={item} archived={archived} onSchedule={onSchedule} onOutcome={onOutcome} onCalendar={onCalendar} />)}</div>}</section>
-}
-
-function CommitmentRow({ item, archived, onSchedule, onOutcome, onCalendar }: {
+function CommitmentRow({ item, today, archived, kind, onSchedule, onOutcome, onCalendar }: {
   item: Commitment
+  today: Date
   archived: boolean
-  onSchedule: (commitment: Commitment) => void
-  onOutcome: (commitment: Commitment) => void
-  onCalendar?: (commitment: Commitment) => Promise<void>
+  kind: string
+  onSchedule: () => void
+  onOutcome: () => void
+  onCalendar?: () => Promise<void>
 }) {
   const [calendarBusy, setCalendarBusy] = useState(false)
   const [calendarError, setCalendarError] = useState('')
@@ -59,11 +81,43 @@ function CommitmentRow({ item, archived, onSchedule, onOutcome, onCalendar }: {
     if (!onCalendar) return
     setCalendarBusy(true)
     setCalendarError('')
-    try { await onCalendar(item) } catch { setCalendarError('Calendar export failed. Check the connection in Settings.') } finally { setCalendarBusy(false) }
+    try { await onCalendar() } catch { setCalendarError('Calendar export failed. Check the connection in Settings.') } finally { setCalendarBusy(false) }
   }
-  return <div><span className="status-pill">{item.kind}</span><strong>{item.action}</strong><small>{item.dueOn} · {item.state}{item.outcome ? ` · ${item.outcome}` : ''}</small>{item.state === 'open' && !archived && <span className="inline-actions"><button className="secondary-button" type="button" onClick={() => onSchedule(item)}>Reschedule</button><button className="secondary-button" type="button" onClick={() => onOutcome(item)}>Outcome</button>{onCalendar && canExportCommitment(item) && <button className="secondary-button" type="button" disabled={calendarBusy} onClick={() => void push()}>{calendarBusy ? 'Adding…' : 'Add to Calendar'}</button>}</span>}{calendarError && <small className="settings-error" role="status">{calendarError}</small>}</div>
+  const open = item.state === 'open'
+  const distance = dayDistance(today, item.dueOn)
+  const when = !open ? 'Discharged' : distance < 0 ? `${Math.abs(distance)} ${Math.abs(distance) === 1 ? 'day' : 'days'} overdue`
+    : distance === 0 ? 'Due today' : distance === 1 ? 'Due tomorrow' : `In ${distance} days`
+  const tone = !open ? 'is-closed' : distance < 0 ? 'is-overdue' : distance === 0 ? 'is-today' : 'is-upcoming'
+  return <article className="item-commitment">
+    <span className={`item-commitment-when ${tone}`}>{when}</span>
+    <span className="item-commitment-title">{item.action}{item.outcome ? <small>{item.outcome}</small> : null}</span>
+    <span className="item-commitment-kind">{kind}</span>
+    {open && !archived
+      ? <span className="inline-actions">
+        <button className="secondary-button" type="button" onClick={onSchedule}>Reschedule</button>
+        <button className="secondary-button" type="button" onClick={onOutcome}>Record</button>
+        {onCalendar && canExportCommitment(item) && <button className="secondary-button" type="button" disabled={calendarBusy} onClick={() => void push()}>{calendarBusy ? 'Adding…' : 'Add to Calendar'}</button>}
+      </span>
+      : <span />}
+    {calendarError && <small className="settings-error" role="status">{calendarError}</small>}
+  </article>
 }
 
 function EventRow({ event }: { event: ActivityEvent }) {
-  return <li><strong>{event.eventType.replace('.', ' ')}</strong><span>{event.source}{event.clientId ? ` · ${event.clientId}` : ''}</span><time dateTime={event.occurredAt}>{new Date(event.occurredAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</time></li>
+  const detail = typeof event.payload?.detail === 'string' ? event.payload.detail : event.clientId ?? ''
+  return <article className="item-event">
+    <time dateTime={event.occurredAt}>{shortDate(event.occurredAt)}</time>
+    <span className={`item-event-source is-${event.source}`}>{event.source}</span>
+    <span className="item-event-detail"><strong>{titleCase(event.eventType.replaceAll('.', ' '))}</strong>{detail ? ` — ${detail}` : ''}</span>
+  </article>
+}
+
+function shortDate(value: string): string {
+  return new Date(value).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })
+}
+
+function titleCase(value: string): string { return value.charAt(0).toUpperCase() + value.slice(1) }
+function shortRef(id: string): string {
+  if (id.startsWith('00000000-0000-4000-8000-000000000')) return `I-${Number(id.slice(-3))}`
+  return id.includes('-') ? `…${id.slice(-6)}` : id
 }

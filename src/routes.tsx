@@ -69,7 +69,12 @@ export function useHashRoute(): [AppRoute, (route: AppRoute) => void] {
 }
 
 const glyphs = {
-  today: '𑀓', due: '𑀤', calendar: '𑀯', browse: '𑀢', week: '𑀭', run: '𑀲', settings: '𑀮',
+  today: '𑀓', due: '𑀥', calendar: '𑀘', browse: '𑀧',
+  item: '𑀫', week: '𑀯', run: '𑀭', settings: '𑀲',
+}
+
+export function sealGlyph(route: AppRoute): string {
+  return glyphs[route.kind] ?? glyphs.today
 }
 
 export function ViewNav({ route, navigate, onCapture, onLog, onAgent, pendingAgents, dueBadge }: {
@@ -93,7 +98,7 @@ export function ViewNav({ route, navigate, onCapture, onLog, onAgent, pendingAge
         <NavButton className="desktop-section" label="Week review" glyph={glyphs.week} active={active === 'week'} onClick={() => navigate({ kind: 'week' })} />
         <NavButton className="desktop-section" label="Run" glyph={glyphs.run} active={active === 'run'} onClick={() => navigate({ kind: 'run' })} />
         <NavButton className="desktop-section" label="Prefs" glyph={glyphs.settings} active={active === 'settings'} onClick={() => navigate({ kind: 'settings' })} />
-        <button className="mobile-more" type="button" onClick={() => navigate({ kind: 'settings' })}><span aria-hidden="true">𑀮</span>More</button>
+        <button className="mobile-more" type="button" onClick={() => navigate({ kind: 'settings' })}><span aria-hidden="true">𑀲</span>More</button>
       </nav>
       <div className="gazette-actions">
         {pendingAgents > 0 && <button className="wire-button" type="button" onClick={onAgent}>MCP wire {pendingAgents}</button>}

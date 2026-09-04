@@ -1,21 +1,21 @@
 {
-  "name": "Command",
-  "short_name": "Command",
-  "description": "A quiet personal operating dashboard.",
+  "name": "The Command Gazette",
+  "short_name": "Gazette",
+  "description": "A private operational dispatch and registry.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0E0E10",
-  "theme_color": "#0E0E10",
+  "background_color": "#F7F5F0",
+  "theme_color": "#F7F5F0",
   "icons": [
     {
-      "src": "./assets/command-icon-192.svg",
+      "src": "./assets/gazette-icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "./assets/command-icon-512.svg",
+      "src": "./assets/gazette-icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

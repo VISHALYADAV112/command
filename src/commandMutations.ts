@@ -139,7 +139,7 @@ export function createCommandMutations(options: Options) {
   function saveSettings(next: Settings): boolean {
     if (!canMutate()) return false
     setSettings(next)
-    writeStoredSettings(next)
+    if (mode === 'demo') writeStoredSettings(next)
     remote((client) => saveRemoteSettings(client, next))
     return true
   }

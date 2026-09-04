@@ -64,12 +64,12 @@ describe('Phase 7 Week', () => {
     expect(summary.days).toHaveLength(7)
     render(<WeekView data={data} settings={settings} today={today} />)
 
-    expect(screen.getByRole('heading', { name: 'This week' })).toBeInTheDocument()
-    expect(screen.getAllByText('Pending')).toHaveLength(4)
-    expect(screen.getAllByText('Not logged')).toHaveLength(3)
-    const thursday = screen.getByText(/Thursday/).closest('article')!
-    expect(within(thursday).getByText('Pending')).toBeInTheDocument()
-    expect(within(thursday).queryByText('0m')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'The week in review' })).toBeInTheDocument()
+    // The Gazette ledger states every unfiled day as pending and prints no figure.
+    expect(screen.getAllByText('pending')).toHaveLength(7)
+    const thursday = screen.getByText('Thursday').closest('.week-table-row') as HTMLElement
+    expect(within(thursday).getByText('pending')).toBeInTheDocument()
+    expect(within(thursday).getAllByText('\u00b7')).toHaveLength(4)
   })
 })
 

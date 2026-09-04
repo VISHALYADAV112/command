@@ -24,14 +24,13 @@ export function TypeRegistrySettings({ types, onSave }: {
   }
 
   return <>
-    <div className="settings-group">
-      <h3>Type registry</h3>
-      <p className="settings-hint">Types drive Capture, Browse, Item, export, and MCP. Disabling a type keeps every existing record.</p>
-      <div className="type-registry-list">{types.map((type) => <button className="registry-setting-row" type="button" key={type.id} onClick={() => setEditing({ type: structuredClone(type), original: type })}>
-        <span><strong>{type.pluralName}</strong><small>{type.typeKey} · schema v{type.schemaVersion}{type.pluginKey ? ` · ${BEHAVIOUR_PLUGIN_LABELS[type.pluginKey]}` : ''}</small></span>
-        <span className="status-pill">{type.isActive ? 'Active' : 'Disabled'}</span>
-      </button>)}</div>
-      <div className="settings-actions"><button className="secondary-button" type="button" onClick={createType}>Create data type</button></div>
+    <div className="prefs-registry">
+      {types.map((type) => <button className="prefs-record" type="button" key={type.id} onClick={() => setEditing({ type: structuredClone(type), original: type })}>
+        <span className="prefs-record-head"><span>{type.pluralName}</span><em>{type.fields.filter((field) => !field.deprecated).length} fields · {type.typeKey}{type.isActive ? '' : ' · disabled'}</em></span>
+        <span className="prefs-record-schema">{type.fields.filter((field) => !field.deprecated).map((field) => `${field.label} (${field.kind})`).join(' · ')}</span>
+        <span className="prefs-record-kinds">Actions: {type.allowedCommitmentKinds.join(', ') || 'none'}{type.pluginKey ? ` · ${BEHAVIOUR_PLUGIN_LABELS[type.pluginKey]}` : ''}</span>
+      </button>)}
+      <div className="prefs-record-actions"><button className="secondary-button" type="button" onClick={createType}>Create data type</button></div>
     </div>
     {editing && <EntityTypeSheet value={editing.type} original={editing.original} onSave={onSave} onClose={() => setEditing(null)} />}
   </>

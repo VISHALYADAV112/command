@@ -17,8 +17,8 @@ export function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <img className="auth-mark" src="./assets/command-mark.svg" alt="" />
-        <p className="eyebrow">Command</p>
+        <img className="auth-mark" src="./assets/gazette-mark.svg" alt="" />
+        <p className="eyebrow">The Command Gazette</p>
         <h1>This dashboard is private.</h1>
         <p className="auth-copy">
           Sign in with the owner Google account. The instance accepts only the

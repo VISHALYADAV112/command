@@ -60,7 +60,7 @@ describe('Phase 7 Run', () => {
     render(<RunView data={data} today={today} />)
     expect(screen.getByRole('heading', { name: 'The run' })).toBeInTheDocument()
     expect(screen.getAllByText(/Trend withheld/)).toHaveLength(5)
-    expect(screen.getByRole('heading', { name: 'Application to first round' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Screen-to-technical conversion' })).toBeInTheDocument()
     expect(screen.queryByText(/oldest to latest/)).not.toBeInTheDocument()
   })
 })

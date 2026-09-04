@@ -79,23 +79,22 @@ export function McpConnections({ session }: { session: Session | null }) {
   }
 
   return <>
-    <div className="settings-group">
-      <h3>AI connections · MCP</h3>
+    <div className="prefs-record">
+      <div className="prefs-record-head"><span>AI connections · MCP</span><em>{session ? `${grants.length} connected` : 'Sign in required'}</em></div>
       {session ? <>
-        <p className="settings-hint">Use this remote MCP endpoint in a compatible AI client.</p>
-        <p className="settings-hint">OAuth scopes identify you. The Command permissions below separately control registry reads, data reads, and reviewable proposals; they never grant direct database or Calendar writes.</p>
+        <div className="prefs-record-line">OAuth scopes identify you. The Command permissions below separately control registry reads, data reads, and reviewable proposals; they never grant direct database or Calendar writes.</div>
         <div className="mcp-endpoint"><code>{mcpEndpoint()}</code><button className="secondary-button" type="button" onClick={copyEndpoint}>{copied ? 'Copied' : 'Copy'}</button></div>
         {error && <p className="settings-error" role="status">{error}</p>}
-        {grants.length === 0 ? <p className="settings-status">No AI clients connected.</p> : <div className="mcp-grants">{grants.map((grant) => <div className="mcp-grant" key={grant.client.id}>
+        {grants.length === 0 ? <div className="prefs-record-line">No AI clients connected.</div> : <div className="mcp-grants">{grants.map((grant) => <div className="mcp-grant" key={grant.client.id}>
           <span><strong>{grant.client.name || 'AI client'}</strong><small>Identity grant · {grant.scopes.join(' · ') || 'identity only'}</small><small>{lastActivity(audit, grant.client.id)}</small></span>
           <fieldset className="mcp-permission-editor"><legend>Command application permissions</legend>{MCP_PERMISSIONS.map((permission) => <label className="check-row" key={permission}><input type="checkbox" checked={permissionsFor(permissions, grant.client.id).includes(permission)} onChange={(event) => togglePermission(grant.client.id, permission, event.target.checked)} />{MCP_PERMISSION_LABELS[permission]}</label>)}</fieldset>
           <span className="inline-actions"><button className="secondary-button" type="button" onClick={() => void savePermissions(grant.client.id)}>Save permissions</button><button className="secondary-button" type="button" onClick={() => setRevoking(grant)}>Revoke</button></span>
         </div>)}</div>}
-      </> : <p className="settings-status">Available after signing in.</p>}
+      </> : <div className="prefs-record-line">Available after signing in.</div>}
     </div>
-    <div className="settings-group">
-      <h3>Agent audit</h3>
-      {!session ? <p className="settings-status">Available after signing in.</p> : audit.length === 0 ? <p className="settings-status">No MCP activity recorded.</p> : <ol className="audit-list">{audit.slice(0, 20).map((entry) => <li key={entry.id}><strong>{entry.toolName}</strong><span>{entry.success ? 'Succeeded' : 'Failed'} · {entry.durationMs}ms · {entry.clientId}</span><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</time><code>{JSON.stringify(entry.inputSummary)}</code>{entry.errorMessage && <small>{entry.errorMessage}</small>}</li>)}</ol>}
+    <div className="prefs-record">
+      <div className="prefs-record-head"><span>Agent audit</span><em>{session ? `${audit.length} entries` : 'Sign in required'}</em></div>
+      {!session ? <div className="prefs-record-line">Available after signing in.</div> : audit.length === 0 ? <div className="prefs-record-line">No MCP activity recorded.</div> : <ol className="audit-list">{audit.slice(0, 20).map((entry) => <li key={entry.id}><strong>{entry.toolName}</strong><span>{entry.success ? 'Succeeded' : 'Failed'} · {entry.durationMs}ms · {entry.clientId}</span><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</time><code>{JSON.stringify(entry.inputSummary)}</code>{entry.errorMessage && <small>{entry.errorMessage}</small>}</li>)}</ol>}
     </div>
     {revoking && <ConfirmSheet title={`Revoke ${revoking.client.name || 'AI client'}?`} detail="Its current Command access and refresh tokens will stop working." confirmLabel="Revoke access" onClose={() => setRevoking(null)} onConfirm={() => void revoke()} />}
   </>
