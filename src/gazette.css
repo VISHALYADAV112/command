@@ -531,7 +531,7 @@ main::before {
 }
 .filter-bar label, .browse-controls label, .browse-filters label { display: grid; gap: 4px; color: var(--muted); font: 600 8px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
 .browse-search { flex: 1; }
-input, select, textarea {
+input:not([type='checkbox']):not([type='radio']), select, textarea {
   box-sizing: border-box;
   min-height: 33px;
   padding: 7px 9px;
@@ -541,6 +541,30 @@ input, select, textarea {
   font: 14px var(--font-body);
 }
 .browse-search input { width: 100%; }
+
+/* Checkbox rows appear inside and outside .simple-form (MCP permissions and the
+   OAuth consent screen sit outside it), so lay them out unconditionally. */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  color: var(--ink);
+  font: 15px var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.check-row input[type='checkbox'], .check-row input[type='radio'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ink);
+}
+.mcp-permission-editor { display: grid; gap: 2px; margin-top: 10px; }
+.mcp-permission-editor legend { margin-bottom: 6px; color: var(--faint); font: 400 10px var(--font-mono); letter-spacing: .16em; text-transform: uppercase; }
 .filter-tabs { display: flex; }
 .filter-tabs button { border-right-width: 0; }
 .filter-tabs button:last-child { border-right-width: 1px; }
@@ -849,7 +873,7 @@ button.prefs-record:hover { background: var(--tint); }
 @media (max-width: 760px) {
   body { font-size: 15px; }
   .capture-button, .primary-button, .danger-button, .log-button, .wire-button, .secondary-button, .filter-tabs button, .calendar-controls button { min-height: 44px; }
-  input, select, textarea { min-height: 44px; }
+  input:not([type='checkbox']):not([type='radio']), select, textarea { min-height: 44px; }
   .app-shell { width: calc(100% - 24px); padding: 9px 0 90px; }
   .app-header { min-width: 0; }
   .gazette-dateline { min-height: 26px; padding-block: 3px; }
@@ -1037,7 +1061,17 @@ button.prefs-record:hover { background: var(--tint); }
   .gazette-footer .log-button { display: none; }
   .gazette-footer span { font-size: 7px; }
 
-  .sheet { width: min(calc(100% - 16px), 560px); max-height: calc(100dvh - 16px); }
+  /* WCAG 2.2 target size: extend the hit area without adding layout height,
+     which would push the Outreach floor out of the approved first viewport. */
+  .text-link { position: relative; }
+  .text-link::after { position: absolute; inset: -10px -4px; content: ''; }
+  .calendar-agenda-row > button:not(.secondary-button) { min-height: 44px; }
+  .registry-row small, .item-commitment .inline-actions .secondary-button { min-height: 32px; }
+  .sheet-close { min-height: 44px; padding: 5px 12px; }
+  .sheet-backdrop { align-items: center; padding: 16px; }
+  .sheet { width: min(calc(100% - 16px), 560px); max-height: calc(100dvh - 32px); padding: 18px; }
+  .sheet-header { min-height: 0; padding: 0 0 10px; }
+  .sheet-header h2 { font-size: 22px; }
   body.sheet-open .gazette-nav-row { visibility: hidden; }
 }
 
