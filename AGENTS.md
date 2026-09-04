@@ -69,9 +69,10 @@ CI runs all three on every push and PR. Do not push red.
 - Supabase OAuth scopes are identity-only. Command MCP permissions are separate
   owner/client application grants; connected-client tokens cannot access public
   tables, first-party mutation RPCs, permission management, or Calendar directly.
-- Phase 8 is at a pre-write recovery checkpoint: production migrations
-  `0013`–`0037`, the verified backfill, and both v3 Edge Functions are in place,
-  while the public Vercel alias is pinned to exact Phase 4 after the first
-  frontend candidate failed visual acceptance. Keep corrections on
-  `command-v3`; do not push, promote, move the alias, rerun the backfill, or make
-  the first v3 canonical write before the remaining acceptance/release gates.
+- Phase 8 is at a pre-write checkpoint. Production migrations `0013`–`0037`,
+  the verified backfill, and both v3 Edge Functions are in place, and the
+  accepted Gazette frontend was released on 2026-09-04 at `ef9a8d0`, so the
+  public alias now serves v3. No v3 canonical production write has happened
+  yet, so rollback is still clean. Do not rerun the backfill, reapply
+  migrations, or make the first v3 canonical write without explicit
+  authorization; keep MCP clients idle until the smoke sequence passes.

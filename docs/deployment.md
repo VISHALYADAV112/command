@@ -21,15 +21,17 @@ today.
 The app retains hash routes. Vercel therefore needs no SPA rewrite for current
 deep links, and existing `/#/...` bookmarks remain valid.
 
-### Current Phase 8 recovery pin
+### Current Phase 8 state
 
-The public alias currently points to the exact Phase 4 deployment
-`dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from commit `e2d5d15`. The first v3 frontend
-candidate from `ad56848` reached Vercel only after the production export,
-migrations, backfill, and function gates passed, but it failed owner visual
-acceptance before the first v3 canonical user write. The alias was therefore
-restored to Phase 4 while the accepted Gazette v12 UI is rebuilt on the local
-`command-v3` branch.
+The public alias serves the accepted Gazette frontend released on 2026-09-04 at
+`ef9a8d021c85f7c4a3d772a97eb8c2dccd3fc218`. Two earlier candidates failed owner
+visual acceptance, and the alias was pinned to exact Phase 4 deployment
+`dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from `e2d5d15` in the meantime.
+
+Restoring that deployment pinned the alias, so the Git integration did not
+reclaim it on the release push. Promoting the new production deployment in the
+Vercel dashboard was required as a separate external write. Expect the same
+after any future manual alias restore: pushing `main` alone will not move it.
 
 Production Postgres now has additive migrations `0013`–`0037` and the verified
 idempotent canonical backfill. Both v3 Edge Functions are deployed, and the

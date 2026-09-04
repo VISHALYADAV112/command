@@ -19,7 +19,10 @@ release.
 
 Treat the first production v3 release as one controlled Phase 8 cutover, not as
 independent frontend and backend deployments. Keep ongoing work on
-`command-v3`, while the Vercel production alias remains on Phase 4.
+`command-v3`, and hold the Vercel production alias on Phase 4 until an accepted
+frontend candidate is released. (That release happened on 2026-09-04 at
+`ef9a8d0`; the alias now serves v3 and the first canonical write is still
+pending.)
 
 The cutover order is:
 

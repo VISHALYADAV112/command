@@ -8,24 +8,32 @@ authorizes production access and the cutover.
 The original starting state for this runbook was a Phase 4 public site and
 production migrations through `0012` only.
 
-## Current recovery checkpoint — 2026-09-03
+## Current checkpoint — frontend released 2026-09-04
 
 The export, maintenance, migration, idempotent backfill, verification, and both
-function stages have now passed. Production has migrations `0013`–`0037`, the
-verified canonical backfill, and both v3 Edge Functions. The first frontend
-candidate failed owner visual acceptance before any v3 canonical user write, so
-the public alias was restored to exact Phase 4 deployment
-`dpl_5kno5iFZBxZh7ArWRV55bQMqZAwH` from `e2d5d15`. Legacy tables are intact,
-the maintenance window has ended, and the private encrypted export/cutover
-record remain outside the repository.
+function stages passed earlier. Production has migrations `0013`–`0037`, the
+verified canonical backfill, and both v3 Edge Functions. Legacy tables are
+intact, the maintenance window has ended, and the private encrypted
+export/cutover record remain outside the repository.
 
-For the corrected frontend release, restart at the safe local release gate with
-a new immutable commit. Do not rerun already-applied migrations or the backfill
-merely to publish CSS/React changes. First obtain owner visual acceptance on the
-new Vercel candidate, then explicit authorization to move the public alias.
-Resume the smoke sequence at authenticated read-only checks and record the first
-successful v3 canonical write as the fix-forward boundary. Keep MCP clients
-idle until that sequence passes.
+The corrected frontend passed owner visual acceptance on the Vercel candidate
+and was released on 2026-09-04 at release SHA
+`ef9a8d021c85f7c4a3d772a97eb8c2dccd3fc218`. `main` fast-forwarded from
+`ad56848`, and the public alias `https://command-beta-flax.vercel.app/` now
+serves the Gazette build. Verified after promotion: the Gazette title and
+manifest, the four packaged fonts, both PWA icons, the service worker, and a
+`404` on the retired `assets/command-mark.svg`.
+
+The Git integration did not reclaim the alias automatically, because restoring
+the Phase 4 deployment during the earlier rollback pinned it. Promoting the new
+production deployment in the Vercel dashboard was required as the separate
+external write this runbook anticipates in section 9. Expect the same for any
+future release that follows a manual alias restore.
+
+**Still open.** No v3 canonical production write has happened, so rollback
+remains clean. Resume at section 10 with the authenticated read-only gate, then
+record the first successful v3 canonical write as the fix-forward boundary.
+Keep MCP clients idle until that sequence passes.
 
 ## Safety properties
 
