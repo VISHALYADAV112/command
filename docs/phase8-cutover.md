@@ -35,6 +35,11 @@ remains clean. Resume at section 10 with the authenticated read-only gate, then
 record the first successful v3 canonical write as the fix-forward boundary.
 Keep MCP clients idle until that sequence passes.
 
+Two phone corrections (`8a2a71e`, `60fb710`) are pushed on `command-v3` and are
+not yet on `main`. They change no desktop layout. Releasing them repeats the
+same two steps: fast-forward `main` to the new SHA and push, then check whether
+the alias moved and promote in the dashboard if it did not.
+
 ## Safety properties
 
 - Take and verify the encrypted production export before the first migration.
