@@ -30,10 +30,15 @@ production deployment in the Vercel dashboard was required as the separate
 external write this runbook anticipates in section 9. Expect the same for any
 future release that follows a manual alias restore.
 
-**Still open.** No v3 canonical production write has happened, so rollback
-remains clean. Resume at section 10 with the authenticated read-only gate, then
-record the first successful v3 canonical write as the fix-forward boundary.
-Keep MCP clients idle until that sequence passes.
+**Fix-forward boundary crossed.** The first v3 canonical production write was
+made on 2026-09-04 from the Codex MCP client. Destructive rollback is no longer
+the recovery path; repairs are forward-only per section 11.
+
+The read-only gate found production carrying no backfilled records: Applications
+read empty and Projects held only the owner's own test entity. A destructive
+reset was considered and declined, because archiving reaches the same visible
+state without a one-way production wipe. Note that archiving cannot withdraw the
+entity's activity events, which are immutable by design.
 
 Two phone corrections (`8a2a71e`, `60fb710`) are pushed on `command-v3` and are
 not yet on `main`. They change no desktop layout. Releasing them repeats the

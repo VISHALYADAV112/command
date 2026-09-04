@@ -1,7 +1,7 @@
 # COMMAND v3 — Living Implementation Plan
 
 **Status:** Approved
-**Plan version:** 3.5
+**Plan version:** 3.6
 **Created:** 2026-08-30
 **Last updated:** 2026-09-04
 **Target:** Replace the fixed v2 dashboard with registry-driven, commitment-centred Command using the Gazette visual language, without losing existing data or weakening security.
@@ -63,8 +63,8 @@ When these documents conflict after this plan is approved, this plan wins until 
 | 7. Add review, readiness, export, and integrations | **Complete** | Week, Run, settings, export, and Calendar rules work |
 | 8. Cut over, harden, and retire legacy paths | **In progress** | Production smoke tests and final completion gate pass |
 
-**Active phase:** Phase 8. The backend cutover passed earlier, and the corrected frontend was accepted and released on 2026-09-04. The public alias now serves the Gazette build at release SHA `ef9a8d021c85f7c4a3d772a97eb8c2dccd3fc218`. No v3 canonical production write has happened yet, so rollback remains clean.
-**Current blocker:** None. The remaining work is the Section 10 smoke sequence: authenticated read-only checks first, then the deliberate first v3 canonical write, which is the fix-forward boundary. That write needs explicit authorization.
+**Active phase:** Phase 8. The backend cutover passed earlier, and the corrected frontend was accepted and released on 2026-09-04, and the phone corrections followed at `805554c`. The public alias serves the Gazette build. The first v3 canonical write was made the same day, so the fix-forward boundary is crossed.
+**Current blocker:** None. The first v3 canonical production write happened on 2026-09-04 and originated from the Codex MCP client, so the fix-forward boundary is crossed and destructive rollback is no longer the recovery path. Production held no backfilled records: Applications read empty and Projects held only the owner's own `Overdue feature test`, so nothing of value was at risk. Repairs from here are forward-only.
 **Repository state:** `main`, `origin/main`, `command-v3`, and `origin/command-v3` are all at `ef9a8d0`. `main` fast-forwarded from Phase 8 preparation commit `ad56848` with no merge commit. Production migrations `0013`–`0037` and the verified idempotent backfill are in place, legacy tables remain untouched, both v3 Edge Functions are deployed with request-level authentication, and MCP clients remain idle. The encrypted verified pre-cutover export and the private cutover record remain outside the repository.
 **Next slice:** Run the Section 10 authenticated read-only smoke checks against production on real backfilled data. Two phone corrections (`8a2a71e`, `60fb710`) are pushed on `command-v3` and are not yet on `main`. Confirm Today, Due, Calendar, Directory, Item, Week, Run, and Preferences read correctly, then obtain explicit authorization before recording the first v3 canonical write.
 
@@ -188,6 +188,14 @@ Promote events to canonical truth only if real requirements appear for replay, t
 - New productivity modules unrelated to the current job/study outcome.
 
 ### 4.3 Deferred to a later version
+
+- **Scratch and test records.** The immutable activity ledger means a test
+  record cannot be fully withdrawn: archiving hides the entity but its
+  `entity.created` and `commitment.created` events remain forever, and hard
+  delete is blocked by `ON DELETE RESTRICT` plus the immutability trigger. A
+  later version should offer a first-class way to mark a record as scratch and
+  exclude it from the register and from Run and Week aggregates, without
+  weakening the audit guarantee. Resetting the database is not that mechanism.
 
 - **Habit display.** Meditation, gym, and diet are still captured in the daily
   log, still stored in `daily_logs`, and still returned by the `get_v3_week`
@@ -1223,3 +1231,4 @@ Add a row whenever a decision changes implementation, scope, migration, or user 
 | 3.3 | 2026-09-03 | Recorded the third local visual-acceptance correction after a route-by-route comparison against the extracted v12 template: repaired the Gazette palette that the legacy day-theme block was overriding, corrected the nav/section Brahmi glyphs and the reference's ink-not-green "met" register, rebuilt Due filters, the Calendar month grid and agenda, the Week retrospective, Preferences (as reference tabs carrying the extra v3 settings), the Item record page, and the overlay chrome, restored the phone composition for the rebuilt surfaces, and passed 97 unit tests, typecheck, build, and the 19-test browser suite while production remains pinned to exact Phase 4 |
 | 3.4 | 2026-09-04 | Released the accepted Gazette frontend to production at `ef9a8d0` after owner visual acceptance on the Vercel candidate: fixed the sample edition's weekday drift that inflated the Outreach floor to 15 of 15 and added a seven-day regression test, removed the legacy day-theme panel behind the day's floors, dropped the invented `gazette_kind` field so commitment kinds stay the closed vocabulary of plan section 6.4, fast-forwarded `main` from `ad56848`, and promoted the pinned alias by hand as the runbook anticipates; production reads the Gazette build and no v3 canonical write has occurred |
 | 3.5 | 2026-09-04 | Corrected the phone composition after owner review: centred overlays that the legacy skin pinned to the bottom of the viewport, stopped the shared control rule from styling checkboxes and radios as text fields, laid checkbox rows out unconditionally so the MCP permission list and OAuth consent screen align, and enlarged small tap targets through hit-area overlays after padding broke the approved 380px first viewport. Recorded habit display as a deliberate deferral: meditation, gym, and diet remain captured, stored, and returned by the week contract but are rendered nowhere in v3 |
+| 3.6 | 2026-09-04 | Recorded the first v3 canonical production write, made on 2026-09-04 from the Codex MCP client, which crosses the fix-forward boundary. Confirmed production carried no backfilled records before it, so a destructive reset was considered and deliberately declined in favour of archiving. Added scratch-record handling to the deferred list: the immutable ledger means a test entity can be archived but never fully withdrawn, so a later version needs a first-class scratch marker rather than a database reset |

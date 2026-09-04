@@ -20,9 +20,10 @@ npm run test:e2e
 The frontend normally deploys to Vercel from `main`; backend deployment is a
 separate, manually dispatched GitHub Actions workflow. Phase 8 is in a pre-write
 state: the additive production backend cutover passed and the accepted Gazette
-frontend was released on 2026-09-04, so the public alias serves v3. No v3
-canonical production write has happened yet, so rollback is still clean until
-the remaining smoke gates pass.
+frontend was released on 2026-09-04, so the public alias serves v3. The first v3
+canonical write was made the same day, so the fix-forward boundary is crossed:
+repair forward with the next append-only migration rather than rolling
+production back.
 
 ## Live deployment
 

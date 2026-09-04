@@ -72,7 +72,7 @@ CI runs all three on every push and PR. Do not push red.
 - Phase 8 is at a pre-write checkpoint. Production migrations `0013`–`0037`,
   the verified backfill, and both v3 Edge Functions are in place, and the
   accepted Gazette frontend was released on 2026-09-04 at `ef9a8d0`, so the
-  public alias now serves v3. No v3 canonical production write has happened
-  yet, so rollback is still clean. Do not rerun the backfill, reapply
-  migrations, or make the first v3 canonical write without explicit
-  authorization; keep MCP clients idle until the smoke sequence passes.
+  public alias now serves v3. The first v3 canonical write was made on
+  2026-09-04, so the fix-forward boundary is crossed: repair forward with the
+  next append-only migration and never destructively roll back production. Do
+  not rerun the backfill or reapply migrations without explicit authorization.
