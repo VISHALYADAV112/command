@@ -385,6 +385,7 @@ main::before {
 .gazette-lede-actions > span { width: auto; margin-right: auto; color: var(--muted); font: 400 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
 
 .floor-field { width: 100%; max-width: none; margin-top: 0; padding: 18px 0 0; border: 0; background: transparent; }
+:root .floor-field { background: transparent; }
 .gazette-section-heading {
   display: flex;
   align-items: baseline;
