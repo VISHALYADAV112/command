@@ -7,6 +7,7 @@ export function deriveWeekSummary(data: CommandData, settings: Settings, today: 
   const [weekStart, , , , , , weekEnd] = week.map(dateKey)
   const todayKey = dateKey(today)
   const logs = new Map(data.legacy.logs.map((log) => [log.day, log]))
+  const activeEntityIds = new Set(data.entities.filter((item) => !item.archivedAt).map((item) => item.id))
   const totals = weeklyTotals(data.legacy.logs, week)
   const outcomes = weeklyOutcomeProgress(data, today)
   const inWeek = (value: string | null): boolean => Boolean(value && timestampDay(value) >= weekStart && timestampDay(value) <= weekEnd)
@@ -42,6 +43,7 @@ export function deriveWeekSummary(data: CommandData, settings: Settings, today: 
       completed: data.commitments.filter((item) => item.state === 'completed' && inWeek(item.completedAt)).length,
       cancelled: data.activityEvents.filter((item) => item.eventType === 'commitment.cancelled' && inWeek(item.occurredAt)).length,
       missed: data.commitments.filter((item) => item.state === 'open'
+        && activeEntityIds.has(item.entityId)
         && item.dueOn >= weekStart && item.dueOn <= weekEnd && item.dueOn < todayKey).length,
     },
     proposals: {

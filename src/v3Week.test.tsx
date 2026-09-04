@@ -71,6 +71,15 @@ describe('Phase 7 Week', () => {
     expect(within(thursday).getByText('pending')).toBeInTheDocument()
     expect(within(thursday).getAllByText('\u00b7')).toHaveLength(4)
   })
+
+  it('does not report an open commitment on an archived record as missed', () => {
+    const data = createDemoData(today)
+    const entity = data.entities[0]
+    entity.archivedAt = '2026-09-02T06:00:00.000Z'
+    data.commitments = [commitment('open', '2026-09-01', null, entity.id)]
+
+    expect(deriveWeekSummary(data, settings, today).commitments.missed).toBe(0)
+  })
 })
 
 function event(eventType: string, occurredAt: string, entityId: string): ActivityEvent {

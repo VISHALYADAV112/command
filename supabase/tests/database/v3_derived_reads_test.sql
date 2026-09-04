@@ -464,12 +464,15 @@ select is(
   (
     select count(*)::integer
     from public.commitments commitment
+    join public.entities entity
+      on entity.user_id = commitment.user_id and entity.id = commitment.entity_id
     where commitment.user_id = '11111111-1111-4111-8111-111111111111'
       and commitment.state = 'open'
+      and entity.archived_at is null
       and commitment.due_on between '2026-08-31'
         and least('2026-09-06'::date, (now() at time zone 'Asia/Kolkata')::date - 1)
   ),
-  'Week counts only open commitments missed before the local current day'
+  'Week counts only active-record commitments missed before the local current day'
 );
 select results_eq(
   $$

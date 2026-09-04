@@ -20,7 +20,8 @@ export function AppHeader({ today, live, preview = false, theme, data, settings,
 }) {
   const day = dateKey(today)
   const floorsMet = threeFloorStatus(data, settings, today).filter((floor) => floor.met).length
-  const open = data.commitments.filter((item) => item.state === 'open')
+  const activeEntityIds = new Set(data.entities.filter((item) => !item.archivedAt).map((item) => item.id))
+  const open = data.commitments.filter((item) => item.state === 'open' && activeEntityIds.has(item.entityId))
   const overdue = open.filter((item) => item.dueOn < day).length
   const issueNo = gazetteIssueNumber(today)
   const longDate = today.toLocaleDateString('en-GB', {
