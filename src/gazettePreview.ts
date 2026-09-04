@@ -187,17 +187,20 @@ function previewActivity(now: Date): ActivityEvent[] {
       idempotencyKey: `gazette-preview:${id}`, occurredAt, createdAt: occurredAt,
     }
   }
+  const monday = startOfMonday(now)
+  const mondayOffset = (index: number) => dayDistance(now, dateKey(addDays(monday, index)))
+  // Historical outreach must sit before this week's Monday, or it drifts into
+  // the weekly counters on later weekdays and the edition stops matching.
+  const beforeWeek = (days: number) => mondayOffset(0) - days
   const history = [
-    event(1, entityIds.stripe, 'application.submitted', -9, 'ui', { detail: 'Internal referral dispatched.' }),
-    event(2, entityIds.stripe, 'calendar.linked', -5, 'calendar', { detail: 'Recruiter screen booked.' }),
-    event(3, entityIds.stripe, 'entity.updated', -2, 'mcp', { detail: 'Stage advanced: Technical.' }),
-    event(4, entityIds.anthropic, 'application.submitted', -4, 'ui', { detail: 'Direct inbound application.' }),
+    event(1, entityIds.stripe, 'application.submitted', beforeWeek(5), 'ui', { detail: 'Internal referral dispatched.' }),
+    event(2, entityIds.stripe, 'calendar.linked', beforeWeek(3), 'calendar', { detail: 'Recruiter screen booked.' }),
+    event(3, entityIds.stripe, 'entity.updated', beforeWeek(1), 'mcp', { detail: 'Stage advanced: Technical.' }),
+    event(4, entityIds.anthropic, 'application.submitted', beforeWeek(2), 'ui', { detail: 'Direct inbound application.' }),
     event(5, entityIds.sarah, 'person.contacted', -50, 'ui', { detail: 'Contact enrolled via outreach log.' }),
     event(6, entityIds.raft, 'entity.created', -28, 'ui', { detail: 'Lead quarter portfolio build.' }),
     event(7, entityIds.learning, 'entity.created', -19, 'ui', { detail: 'Spaced repetition schedule active.' }),
   ]
-  const monday = startOfMonday(now)
-  const mondayOffset = (index: number) => dayDistance(now, dateKey(addDays(monday, index)))
   let application = 0
   const weeklyApplications = gazettePreviewExecution.flatMap((entry, index) => Array.from({ length: entry.job }, () => {
     application += 1
